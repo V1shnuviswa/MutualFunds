@@ -4,6 +4,35 @@ from pydantic import BaseModel, Field, EmailStr, validator, field_validator, Con
 from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime, date
 import decimal
+from enum import Enum
+
+# --- Enums --- #
+class OrderType(str, Enum):
+    LUMPSUM = "LUMPSUM"
+    SIP = "SIP"
+    SWITCH = "SWITCH"
+    SPREAD = "SPREAD"
+
+class TransactionType(str, Enum):
+    PURCHASE = "PURCHASE"
+    REDEMPTION = "REDEMPTION"
+
+class OrderStatus(str, Enum):
+    RECEIVED = "RECEIVED"
+    PENDING = "PENDING"
+    PAYMENT_INITIATED = "PAYMENT_INITIATED"
+    PAYMENT_COMPLETED = "PAYMENT_COMPLETED"
+    SENT_TO_BSE = "SENT_TO_BSE"
+    ACCEPTED_BY_BSE = "ACCEPTED_BY_BSE"
+    REJECTED_BY_BSE = "REJECTED_BY_BSE"
+    CANCELLED = "CANCELLED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+class SIPFrequency(str, Enum):
+    MONTHLY = "MONTHLY"
+    QUARTERLY = "QUARTERLY"
+    WEEKLY = "WEEKLY"
 
 # --- Base Models --- #
 class Token(BaseModel):
@@ -88,162 +117,161 @@ class Scheme(SchemeBase):
 
     added_at: datetime
 
-# --- Order Schemas --- #
+# --- Base Order Models --- #
 class OrderBase(BaseModel):
-    # Pydantic V2 model_config for alias handling
-    model_config = ConfigDict(populate_by_name=True)
+    unique_ref_no: str = Field(..., description="Unique reference number for the order")
+    client_code: str = Field(..., description="Client code")
+    scheme_code: str = Field(..., description="Scheme code")
+    folio_no: Optional[str] = Field(None, description="Folio number if existing")
+    dp_txn_mode: str = Field("DEMAT", description="Transaction mode (DEMAT/PHYSICAL)")
+    euin: Optional[str] = Field(None, description="EUIN number")
+    euin_declared: bool = Field(False, description="EUIN declaration flag")
+    sub_arn_code: Optional[str] = Field(None, description="Sub ARN code")
+    remarks: Optional[str] = Field(None, description="Order remarks")
+    ip_address: Optional[str] = Field(None, description="Client IP address")
 
-    unique_ref_no: str = Field(..., max_length=50, alias="uniqueRefNo")
-    client_code: str = Field(..., max_length=50, alias="clientCode")
-    scheme_code: str = Field(..., max_length=50, alias="schemeCode")
-    folio_no: Optional[str] = Field(None, max_length=50, alias="folioNo")
-    ip_address: Optional[str] = Field(None, max_length=45, alias="ipAddress")
-    euin: Optional[str] = Field(None, max_length=50)
-    euin_declared: Optional[Literal["Y", "N"]] = Field(None, alias="euinDeclared")
-    sub_arn_code: Optional[str] = Field(None, max_length=50, alias="subArnCode")
-
+# --- Lumpsum Order Models --- #
 class LumpsumOrderCreate(OrderBase):
-    # Pydantic V2 model_config for alias handling
-    model_config = ConfigDict(populate_by_name=True)
+    transaction_type: TransactionType
+    amount: Optional[decimal.Decimal] = Field(None, description="Order amount")
+    quantity: Optional[decimal.Decimal] = Field(None, description="Order quantity")
+    all_units_flag: bool = Field(False, description="Redeem all units flag")
+    min_redeem_flag: bool = Field(False, description="Minimum redemption flag")
+    dpc_flag: bool = Field(False, description="DPC flag")
 
-    transactionType: Literal["PURCHASE", "REDEMPTION"] = Field(..., alias="transactionType")
-    amount: Optional[decimal.Decimal] = Field(None, max_digits=15, decimal_places=2)
-    quantity: Optional[decimal.Decimal] = Field(None, max_digits=15, decimal_places=4)
-    dpTxnMode: Optional[str] = Field(None, alias="dpTxnMode")
-    kycStatus: Literal["Y", "N"] = Field(..., alias="kycStatus")
-    remarks: Optional[str] = None
-
-    # # Pydantic V2 validator syntax - Temporarily commented out to isolate alias parsing issue
-    # @field_validator("amount", "quantity", mode="before")
-    # @classmethod
-    # def check_amount_or_quantity(cls, v, info):
-    #     values = info.data # Access the raw input data (should contain aliases)
-    #     ttype = values.get("transactionType")
-    #     # Check both alias and field name for amount
-    #     amount_val = values.get("amount", v) 
-    #     if ttype == "PURCHASE" and amount_val is None:
-    #         raise ValueError("Amount is required for PURCHASE")
-    #     if ttype == "REDEMPTION" and amount_val is not None:
-    #         pass # Allow amount for redemption if API supports it
-    #     # Add quantity validation for redemption if needed
-    #     return v
-
-class LumpsumOrderResponse(BaseModel):
-    # Pydantic V2 model_config for alias handling (output)
-    model_config = ConfigDict(populate_by_name=True)
-
-    statusCode: str = Field(..., alias="statusCode")
-    message: str
-    clientCode: str = Field(..., alias="clientCode")
-    orderId: Optional[str] = Field(None, alias="orderId")
-    uniqueRefNo: str = Field(..., alias="uniqueRefNo")
-    bseRemarks: Optional[str] = Field(None, alias="bseRemarks")
-    successFlag: Literal["Y", "N"] = Field(..., alias="successFlag")
-
-class SIPOrderCreate(OrderBase):
-    # Pydantic V2 model_config for alias handling
-    model_config = ConfigDict(populate_by_name=True)
-
-    amount: decimal.Decimal = Field(..., max_digits=15, decimal_places=2)
-    frequency: str
-    startDate: date = Field(..., alias="startDate")
-    endDate: Optional[date] = Field(None, alias="endDate")
-    installments: Optional[int] = None
-    firstOrderToday: Literal["Y", "N"] = Field(..., alias="firstOrderToday")
-    mandateId: Optional[str] = Field(None, alias="mandateId")
-    brokerage: Optional[str] = None
-    remarks: Optional[str] = None
-
-    # Pydantic V2 validator syntax
-    @field_validator("endDate", "installments", mode="before")
-    @classmethod
-    def check_end_date_or_installments(cls, v, info):
-        values = info.data
-        if values.get("endDate") is None and values.get("installments") is None:
-            raise ValueError("Either endDate or installments must be provided for SIP")
-        if values.get("endDate") is not None and values.get("installments") is not None:
-            raise ValueError("Provide either endDate or installments for SIP, not both")
+    @validator('amount', 'quantity')
+    def validate_amount_or_quantity(cls, v, values):
+        if 'amount' not in values and 'quantity' not in values:
+            raise ValueError("Either amount or quantity must be provided")
         return v
 
-class SIPOrderResponse(BaseModel):
-    # Pydantic V2 model_config for alias handling (output)
-    model_config = ConfigDict(populate_by_name=True)
-
-    statusCode: str = Field(..., alias="statusCode")
+class LumpsumOrderResponse(BaseModel):
     message: str
-    clientCode: str = Field(..., alias="clientCode")
-    sipRegId: Optional[str] = Field(None, alias="sipRegId")
-    uniqueRefNo: str = Field(..., alias="uniqueRefNo")
-    bseRemarks: Optional[str] = Field(None, alias="bseRemarks")
-    successFlag: Literal["Y", "N"] = Field(..., alias="successFlag")
+    order_id: str
+    unique_ref_no: str
+    bse_order_id: str
+    status: str
+    bse_status_code: str
+    bse_remarks: Optional[str]
 
+# --- SIP Order Models --- #
+class SIPOrderCreate(OrderBase):
+    frequency: SIPFrequency
+    amount: decimal.Decimal = Field(..., description="SIP installment amount")
+    installments: Optional[int] = Field(None, description="Number of installments")
+    start_date: date = Field(..., description="SIP start date")
+    end_date: Optional[date] = Field(None, description="SIP end date")
+    mandate_id: str = Field(..., description="Mandate ID for payments")
+    first_order_today: bool = Field(False, description="Place first order today")
+
+class SIPOrderModify(BaseModel):
+    sip_reg_id: str = Field(..., description="SIP registration ID")
+    unique_ref_no: str = Field(..., description="Unique reference for modification")
+    client_code: str = Field(..., description="Client code for validation")
+    new_amount: Optional[decimal.Decimal] = Field(None, description="New SIP amount")
+    new_installments: Optional[int] = Field(None, description="New number of installments")
+
+class SIPOrderResponse(BaseModel):
+    message: str
+    sip_id: Optional[str]
+    unique_ref_no: Optional[str]
+    bse_sip_reg_id: Optional[str]
+    status: str
+    bse_status_code: Optional[str]
+    bse_remarks: Optional[str]
+
+# --- Switch Order Models --- #
+class SwitchOrderCreate(OrderBase):
+    from_scheme_code: str = Field(..., description="Source scheme code")
+    to_scheme_code: str = Field(..., description="Target scheme code")
+    amount: Optional[decimal.Decimal] = Field(None, description="Switch amount")
+    units: Optional[decimal.Decimal] = Field(None, description="Switch units")
+    all_units_flag: bool = Field(False, description="Switch all units flag")
+
+    @validator('amount', 'units')
+    def validate_amount_or_units(cls, v, values):
+        if 'amount' not in values and 'units' not in values:
+            raise ValueError("Either amount or units must be provided")
+        return v
+
+class SwitchOrderResponse(BaseModel):
+    message: str
+    order_id: str
+    unique_ref_no: str
+    bse_order_id: str
+    status: str
+    bse_status_code: str
+    bse_remarks: Optional[str]
+
+# --- Spread Order Models --- #
+class SpreadOrderCreate(OrderBase):
+    buy_sell: str = Field(..., description="Buy/Sell indicator")
+    purchase_amount: Optional[decimal.Decimal] = Field(None, description="Purchase amount")
+    redemption_amount: Optional[decimal.Decimal] = Field(None, description="Redemption amount")
+    all_units_flag: bool = Field(False, description="All units flag")
+    redeem_date: date = Field(..., description="Redemption date")
+
+class SpreadOrderResponse(BaseModel):
+    message: str
+    order_id: str
+    unique_ref_no: str
+    bse_order_id: str
+    status: str
+    bse_status_code: str
+    bse_remarks: Optional[str]
+
+# --- Order Status Models --- #
 class OrderStatusQuery(BaseModel):
-    # Pydantic V2 model_config for alias handling (input from query params)
-    model_config = ConfigDict(populate_by_name=True)
-
-    clientCode: str = Field(..., alias="clientCode")
-    fromDate: date = Field(..., alias="fromDate")
-    toDate: date = Field(..., alias="toDate")
-    orderId: Optional[str] = Field(None, alias="orderId")
+    clientCode: str
+    fromDate: date
+    toDate: date
+    orderId: Optional[str] = None
     status: Optional[str] = None
-    memberId: str = Field(..., alias="memberId")
 
-class OrderStatusDetail(BaseModel):
-    # Pydantic V2 model_config for ORM mode and alias handling (output)
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+class OrderStatusHistoryResponse(BaseModel):
+    status: str
+    remarks: Optional[str]
+    createdAt: datetime
+    createdBy: str
 
-    orderId: Optional[str] = Field(None, alias="orderId")
-    internalOrderId: int = Field(..., alias="internalOrderId")
-    uniqueRefNo: str = Field(..., alias="uniqueRefNo")
-    orderDate: date = Field(..., alias="orderDate")
-    orderTime: Optional[str] = Field(None, alias="orderTime")
-    clientCode: str = Field(..., alias="clientCode")
-    clientName: Optional[str] = Field(None, alias="clientName")
-    schemeCode: str = Field(..., alias="schemeCode")
-    schemeName: Optional[str] = Field(None, alias="schemeName")
-    orderType: str = Field(..., alias="orderType")
-    transactionType: Optional[str] = Field(None, alias="transactionType")
-    amount: Optional[decimal.Decimal] = None
-    quantity: Optional[decimal.Decimal] = None
-    price: Optional[decimal.Decimal] = None
-    folioNo: Optional[str] = Field(None, alias="folioNo")
-    orderStatus: str = Field(..., alias="orderStatus")
-    allotmentDate: Optional[date] = Field(None, alias="allotmentDate")
-    remarks: Optional[str] = None
+class OrderDetailResponse(BaseModel):
+    internalOrderId: int
+    orderId: Optional[str]
+    uniqueRefNo: str
+    orderDate: date
+    orderTime: str
+    clientCode: str
+    clientName: Optional[str]
+    schemeCode: str
+    schemeName: Optional[str]
+    orderType: str
+    transactionType: str
+    amount: Optional[decimal.Decimal]
+    quantity: Optional[decimal.Decimal]
+    folioNo: Optional[str]
+    orderStatus: str
+    paymentStatus: Optional[str]
+    paymentReference: Optional[str]
+    paymentDate: Optional[datetime]
+    allotmentDate: Optional[datetime]
+    allotmentNav: Optional[decimal.Decimal]
+    unitsAllotted: Optional[decimal.Decimal]
+    settlementDate: Optional[datetime]
+    settlementAmount: Optional[decimal.Decimal]
+    statusHistory: List[OrderStatusHistoryResponse]
+    remarks: Optional[str]
 
-class OrderStatusResponse(BaseModel):
-    # Pydantic V2 model_config for alias handling (output)
-    model_config = ConfigDict(populate_by_name=True)
+class EnhancedOrderStatusResponse(BaseModel):
+    status: str
+    data: List[OrderDetailResponse]
 
-    status: Literal["Success", "Failed"]
-    data: Optional[List[OrderStatusDetail]] = None
-    message: Optional[str] = None
-
-# --- Mandate Schemas (Placeholder) --- #
-class MandateBase(BaseModel):
-    # Pydantic V2 model_config for alias handling
-    model_config = ConfigDict(populate_by_name=True)
-
-    mandate_id: str = Field(..., max_length=50, alias="mandateId")
-    client_code: str = Field(..., max_length=50, alias="clientCode")
-    bank_account_no: str = Field(..., max_length=50, alias="bankAccountNo")
-    bank_name: str = Field(..., max_length=100, alias="bankName")
-    ifsc_code: str = Field(..., max_length=11, alias="ifscCode")
-    amount: decimal.Decimal = Field(..., max_digits=15, decimal_places=2)
-    mandate_type: str = Field(..., max_length=20, alias="mandateType")
-    status: str = Field(default="PENDING", max_length=30)
-    registration_date: Optional[date] = Field(None, alias="registrationDate")
-    expiry_date: Optional[date] = Field(None, alias="expiryDate")
-
-class MandateCreate(MandateBase):
-    pass
-
-class Mandate(MandateBase):
-    # Pydantic V2 model_config for ORM mode and alias handling
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+# --- Order Cancellation Models --- #
+class OrderCancellationResponse(BaseModel):
+    message: str
+    order_id: str
+    status: str
+    bse_status_code: str
+    bse_remarks: Optional[str]
 
 # --- General API Responses --- #
 class GenericResponse(BaseModel):
@@ -269,36 +297,6 @@ class NAVResponse(BaseModel):
     status: str
     status_code: str = Field(..., alias="statusCode")
     message: Optional[str] = None
-
-class OrderStatusHistoryResponse(BaseModel):
-    """Schema for order status history entry."""
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    status: str
-    remarks: Optional[str] = None
-    created_at: datetime = Field(..., alias="createdAt")
-    created_by: str = Field(..., alias="createdBy")
-
-class EnhancedOrderStatusDetail(OrderStatusDetail):
-    """Enhanced order status detail with additional tracking information."""
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    paymentStatus: Optional[str] = Field(None, alias="paymentStatus")
-    paymentReference: Optional[str] = Field(None, alias="paymentReference")
-    paymentDate: Optional[datetime] = Field(None, alias="paymentDate")
-    allotmentDate: Optional[datetime] = Field(None, alias="allotmentDate")
-    allotmentNav: Optional[decimal.Decimal] = Field(None, alias="allotmentNav")
-    unitsAllotted: Optional[decimal.Decimal] = Field(None, alias="unitsAllotted")
-    settlementDate: Optional[datetime] = Field(None, alias="settlementDate")
-    settlementAmount: Optional[decimal.Decimal] = Field(None, alias="settlementAmount")
-    statusHistory: List[OrderStatusHistoryResponse] = Field(default_factory=list, alias="statusHistory")
-
-class EnhancedOrderStatusResponse(BaseModel):
-    """Enhanced response model for order status endpoint."""
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    status: str
-    data: List[EnhancedOrderStatusDetail]
 
 class PaymentRequest(BaseModel):
     """Schema for payment initiation request."""

@@ -1,11 +1,11 @@
 # /home/ubuntu/order_management_system/src/crud.py
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, update, delete
 from . import models, schemas, security
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 
 # --- User CRUD --- #
 
@@ -45,8 +45,8 @@ def update_client(db: Session, client_code: str, client_data: schemas.ClientCrea
     if db_client:
         for key, value in client_data.model_dump(exclude_unset=True).items():
             setattr(db_client, key, value)
-        db.commit()
-        db.refresh(db_client)
+    db.commit()
+    db.refresh(db_client)
     return db_client
 
 # --- Scheme CRUD --- #
@@ -69,17 +69,18 @@ def create_lumpsum_order(db: Session, order_data: schemas.LumpsumOrderCreate, us
         client_code=order_data.client_code,
         scheme_code=order_data.scheme_code,
         order_type="LUMPSUM",
-        transaction_type=order_data.transactionType,
+        transaction_type=order_data.transaction_type,
         amount=order_data.amount,
         quantity=order_data.quantity,
         folio_no=order_data.folio_no,
-        status="RECEIVED", # Initial status
+        status="RECEIVED",
         user_id=user_id,
         ip_address=order_data.ip_address,
         euin=order_data.euin,
         euin_declared=order_data.euin_declared,
-        sub_arn_code=order_data.sub_arn_code
-        # Add other fields like dpTxnMode, remarks if stored in DB
+        sub_arn_code=order_data.sub_arn_code,
+        dp_txn_mode=order_data.dp_txn_mode,
+        remarks=order_data.remarks
     )
     db.add(db_order)
     db.commit()
@@ -247,23 +248,37 @@ def update_sip_status(db: Session, sip_reg_id: int, bse_sip_reg_id: str, status:
 
 # --- Mandate CRUD (Placeholder) --- #
 
-def get_mandate(db: Session, mandate_id: str):
-    return db.get(models.Mandate, mandate_id)
+def get_mandate(db: Session, mandate_id: str) -> Optional[models.Mandate]:
+    """
+    Get a mandate by its ID.
+    """
+    return db.execute(
+        select(models.Mandate)
+        .filter(models.Mandate.mandate_id == mandate_id)
+    ).scalar_one_or_none()
 
-def create_mandate(db: Session, mandate: schemas.MandateCreate):
+def create_mandate(db: Session, mandate: schemas.MandateCreate) -> models.Mandate:
+    """
+    Create a new mandate.
+    """
     db_mandate = models.Mandate(**mandate.model_dump())
     db.add(db_mandate)
     db.commit()
     db.refresh(db_mandate)
     return db_mandate
 
-def get_order_by_payment_reference(db: Session, payment_reference: str) -> models.Order:
-    """Get order by payment reference."""
-    return db.query(models.Order)\
-        .filter(models.Order.payment_reference == payment_reference)\
-        .first()
+def get_order_by_payment_reference(db: Session, payment_reference: str) -> Optional[models.Order]:
+    """
+    Get an order by its payment reference.
+    """
+    return db.execute(
+        select(models.Order)
+        .filter(models.Order.payment_reference == payment_reference)
+    ).scalar_one_or_none()
 
-def get_order(db: Session, order_id: int) -> models.Order:
-    """Get order by ID."""
+def get_order(db: Session, order_id: int) -> Optional[models.Order]:
+    """
+    Get an order by its ID.
+    """
     return db.get(models.Order, order_id)
 
