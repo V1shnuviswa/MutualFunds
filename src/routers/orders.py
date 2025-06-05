@@ -41,6 +41,10 @@ async def place_lumpsum_order(
         # Preprocess and validate payload
         order_data = schemas.LumpsumOrderCreate(**preprocess_payload(payload))
         
+        # Save order to database first
+        db_order = crud.create_lumpsum_order(db=db, order_data=order_data, user_id=current_user.id)
+        logger.info(f"Created lumpsum order in database with ID: {db_order.id}")
+        
         # Get encrypted password
         encrypted_password = await bse_authenticator.get_encrypted_password()
         
@@ -64,15 +68,37 @@ async def place_lumpsum_order(
             "Password": encrypted_password
         })
         
+        # Update order status in database to "SENT_TO_BSE"
+        crud.update_order_status(
+            db=db,
+            order_id=db_order.id,
+            status="SENT_TO_BSE",
+            user_id=current_user.id,
+            remarks="Order sent to BSE"
+        )
+        
         # Place order
         bse_response = await bse_order_placer.place_lumpsum_order(order_data, encrypted_password)
         
         # Parse response
         parsed_response = bse_soap_handler.parse_order_response(bse_response)
         
+        # Update order status based on BSE response
+        new_status = "ACCEPTED_BY_BSE" if parsed_response.success_flag == "1" else "REJECTED_BY_BSE"
+        
+        crud.update_order_status(
+            db=db,
+            order_id=db_order.id,
+            status=new_status,
+            user_id=current_user.id,
+            status_code=parsed_response.success_flag,
+            remarks=parsed_response.bse_remarks,
+            order_id_bse=parsed_response.order_number
+        )
+        
         return schemas.LumpsumOrderResponse(
             message=parsed_response.bse_remarks,
-            order_id=parsed_response.order_number,
+            order_id=str(db_order.id),
             unique_ref_no=order_data.unique_ref_no,
             bse_order_id=parsed_response.order_number,
             status="SUCCESS" if parsed_response.success_flag == "1" else "FAILED",
@@ -141,24 +167,46 @@ async def register_sip_order(
         logger.info(f"Successfully placed SIP order via BSE for RefNo: {sip_data.unique_ref_no}")
 
         # 4. Update internal database record (optional)
-        # db_sip = crud.create_sip_order(db=db, sip_order=sip_data)
-        # crud.update_sip_status(
-        #     db=db, 
-        #     sip_id=db_sip.id, 
-        #     status=bse_response.get("message", "REGISTERED_VIA_BSE"), 
-        #     bse_sip_reg_id=bse_response.get("bse_sip_reg_id"),
-        #     bse_remarks=bse_response.get("bse_remarks")
-        # )
+        db_order = crud.create_sip_registration_order(db=db, sip_data=sip_data, user_id=current_user.id)
+        
+        if bse_response.success:
+            # Update with BSE registration ID
+            crud.update_sip_status(
+                db=db, 
+                sip_reg_id=db_order.sip_registration.id, 
+                bse_sip_reg_id=bse_response.order_id, 
+                status="REGISTERED_WITH_BSE"
+            )
+            
+            # Update order status
+            crud.update_order_status(
+                db=db,
+                order_id=db_order.id,
+                status="ACCEPTED_BY_BSE",
+                user_id=current_user.id,
+                status_code=bse_response.status_code,
+                remarks=bse_response.message
+            )
+        else:
+            # Update with failure information
+            crud.update_order_status(
+                db=db,
+                order_id=db_order.id,
+                status="REJECTED_BY_BSE",
+                user_id=current_user.id,
+                status_code=bse_response.status_code,
+                remarks=bse_response.message
+            )
 
         # 5. Map BSE response to API response schema
         api_response = schemas.SIPOrderResponse(
-            message=f'SIP successfully registered via BSE: {bse_response.get("message")}',
-            sip_id=None, # Or db_sip.id if storing locally
-            unique_ref_no=bse_response.get("unique_ref_no", sip_data.unique_ref_no),
-            bse_sip_reg_id=bse_response.get("bse_sip_reg_id"),
-            status=bse_response.get("message", "SUCCESS"), # Map BSE status
-            bse_status_code=bse_response.get("status_code"),
-            bse_remarks=bse_response.get("bse_remarks")
+            message=f'SIP successfully registered via BSE: {bse_response.message}',
+            sip_id=str(db_order.sip_registration.id),  # Use database ID
+            unique_ref_no=sip_data.unique_ref_no,
+            bse_sip_reg_id=bse_response.order_id,
+            status="SUCCESS" if bse_response.success else "FAILED",
+            bse_status_code=bse_response.status_code,
+            bse_remarks=bse_response.details.get("bse_remarks", "")
         )
         return api_response
 

@@ -15,7 +15,7 @@ def setup_database():
     # Get database URL from environment variable or use default SQLite database
     database_url = os.getenv(
         "DATABASE_URL",
-        "sqlite:///./order_management.db"
+        "sqlite:///./order_management.db"  # This is correct as setup_db.py is now in the root directory
     )
 
     print(f"Setting up database at: {database_url}")
@@ -43,8 +43,8 @@ def setup_database():
         return False
 
 if __name__ == "__main__":
-    # Add src directory to Python path
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # Add current directory to Python path since we're in the root
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     
     if setup_database():
         print("Database setup completed successfully")

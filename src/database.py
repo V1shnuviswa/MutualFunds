@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from databases import Database
 
-DATABASE_URL = "sqlite+aiosqlite:///./order_management.db"
+DATABASE_URL = "sqlite+aiosqlite:///../order_management.db"
 
 # SQLAlchemy setup for ORM (synchronous for model definition)
 engine = create_engine(

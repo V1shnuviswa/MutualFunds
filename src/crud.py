@@ -168,7 +168,8 @@ def update_order_status(
     allotment_nav: Decimal | None = None,
     units_allotted: Decimal | None = None,
     settlement_date: datetime | None = None,
-    settlement_amount: Decimal | None = None
+    settlement_amount: Decimal | None = None,
+    order_id_bse: str | None = None
 ) -> models.Order:
     """
     Update order status and create status history record.
@@ -182,6 +183,10 @@ def update_order_status(
     db_order.status_code = status_code
     db_order.status_updated_by = user_id
     db_order.status_updated_at = datetime.utcnow()
+
+    # Update BSE order ID if provided
+    if order_id_bse:
+        db_order.order_id_bse = order_id_bse
 
     # Update optional fields if provided
     if payment_status:

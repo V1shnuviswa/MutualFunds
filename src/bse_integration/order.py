@@ -3,13 +3,13 @@
 """
 BSE STAR MF Order Management System
 
-This module handles all types of orders (Lumpsum, SIP, Switch, Spread) with BSE STAR MF using SOAP.
-Supports order operations: Buy, Sell, Modify, Cancel and Status tracking.
+This module handles all types of orders with BSE STAR MF using SOAP.
+Supports: Lumpsum, SIP, XSIP, Switch, Spread orders with all operations.
 """
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, date
 from decimal import Decimal
 from dataclasses import dataclass
@@ -17,20 +17,46 @@ from xml.etree import ElementTree as ET
 
 import requests
 from requests.exceptions import RequestException
-from zeep import Client, Transport
+from zeep import Client, Transport, Settings
 from zeep.exceptions import Fault, TransportError
-from requests import Session
+from requests import Session, RequestException
 
 from .config import bse_settings
+from .validators import (
+    validate_transaction_code, validate_reference_number,
+    validate_member_code, validate_client_code, validate_scheme_code,
+    validate_amount, validate_units, validate_date_format,
+    validate_mandate_id, validate_yes_no_flag
+)
 from .exceptions import (
-    BSEIntegrationError, BSEOrderError, BSETransportError, BSESoapFault,
-    BSEValidationError
+    BSEIntegrationError, BSEOrderError, BSETransportError,
+    BSESoapFault, BSEValidationError
 )
 from .. import schemas
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Order Status Constants
+class OrderStatus:
+    RECEIVED = "RECEIVED"
+    PENDING = "PENDING"
+    PAYMENT_INITIATED = "PAYMENT_INITIATED"
+    PAYMENT_COMPLETED = "PAYMENT_COMPLETED"
+    SENT_TO_BSE = "SENT_TO_BSE"
+    ACCEPTED_BY_BSE = "ACCEPTED_BY_BSE"
+    REJECTED_BY_BSE = "REJECTED_BY_BSE"
+    CANCELLED = "CANCELLED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+# SOAP Namespaces
+SOAP_NS = {
+    'soap': 'http://www.w3.org/2003/05/soap-envelope',
+    'star': 'http://bsestarmf.in/',
+    'wsa': 'http://www.w3.org/2005/08/addressing'
+}
 
 @dataclass
 class OrderResponse:
@@ -56,15 +82,19 @@ class OrderResponse:
             details={
                 "client_code": parts[3] if len(parts) > 3 else "",
                 "bse_remarks": parts[4] if len(parts) > 4 else "",
-                "success_flag": parts[5] if len(parts) > 5 else "Y" if parts[0] == "100" else "N"
+                "success_flag": parts[5] if len(parts) > 5 else "Y" if parts[0] == "100" else "N",
+                "si_order_id": parts[6] if len(parts) > 6 else None,  # For switch orders
+                "xsip_reg_id": parts[7] if len(parts) > 7 else None,  # For XSIP orders
+                "order_status": parts[8] if len(parts) > 8 else None,  # Current order status
+                "payment_status": parts[9] if len(parts) > 9 else None,  # Payment status if applicable
+                "units_allotted": parts[10] if len(parts) > 10 else None,  # Units allotted if applicable
+                "nav": parts[11] if len(parts) > 11 else None,  # NAV if applicable
+                "amount": parts[12] if len(parts) > 12 else None  # Final amount if applicable
             }
         )
 
 class BSEOrderPlacer:
-    """
-    Handles all types of orders with BSE STAR MF using SOAP.
-    Supports: Lumpsum, SIP, Switch, Spread orders with all operations.
-    """
+    """Handles all types of orders with BSE STAR MF using SOAP."""
 
     def __init__(self) -> None:
         """Initialize BSE Order Placer with SOAP client"""
@@ -73,36 +103,66 @@ class BSEOrderPlacer:
         self.member_id = bse_settings.BSE_MEMBER_CODE
 
         if not self.wsdl_url:
-            raise BSEIntegrationError("BSE_ORDER_ENTRY_WSDL is not configured.")
+            raise BSEIntegrationError("BSE_ORDER_ENTRY_WSDL is not configured")
         if not self.user_id or not self.member_id:
-             raise BSEIntegrationError("BSE User ID or Member ID not configured.")
+            raise BSEIntegrationError("BSE User ID or Member ID not configured")
 
-        # Initialize SOAP client
         try:
             session = Session()
             transport = Transport(session=session)
             self.client = Client(self.wsdl_url, transport=transport)
-            logger.info(f"Initialized SOAP client for BSE Order Entry service")
+            logger.info("Initialized SOAP client for BSE Order Entry service")
         except Exception as e:
             logger.error(f"Failed to initialize SOAP client: {e}", exc_info=True)
             raise BSEIntegrationError(f"WSDL initialization failed: {str(e)}")
 
-    def _create_soap_envelope(self, action: str, method: str) -> ET.Element:
-        """Create SOAP envelope with proper headers"""
-        envelope = ET.Element("{http://www.w3.org/2003/05/soap-envelope}Envelope")
-        envelope.set("xmlns:soap", "http://www.w3.org/2003/05/soap-envelope")
-        envelope.set("xmlns:bses", "http://bsestarmf.in/")
-        
-        header = ET.SubElement(envelope, "{http://www.w3.org/2003/05/soap-envelope}Header")
-        header.set("xmlns:wsa", "http://www.w3.org/2005/08/addressing")
-        
-        action_elem = ET.SubElement(header, "{http://www.w3.org/2005/08/addressing}Action")
-        action_elem.text = f"http://bsestarmf.in/MFOrderEntry/{action}"
-        
-        to = ET.SubElement(header, "{http://www.w3.org/2005/08/addressing}To")
-        to.text = "https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure"
-        
-        return envelope
+    def create_soap_envelope(self, method: str, params: Dict[str, Any]) -> str:
+        """Create SOAP envelope for BSE STAR MF web service"""
+        root = ET.Element(f"{{{SOAP_NS['soap']}}}Envelope")
+        for prefix, uri in SOAP_NS.items():
+            root.set(f'xmlns:{prefix}', uri)
+
+        header = ET.SubElement(root, f"{{{SOAP_NS['soap']}}}Header")
+        action = ET.SubElement(header, f"{{{SOAP_NS['wsa']}}}Action")
+        action.text = f"http://bsestarmf.in/MFOrderEntry/{method}"
+
+        body = ET.SubElement(root, f"{{{SOAP_NS['soap']}}}Body")
+        request = ET.SubElement(body, f"{{{SOAP_NS['star']}}}{method}")
+
+        for key, value in params.items():
+            param = ET.SubElement(request, key)
+            param.text = str(value)
+
+        return ET.tostring(root, encoding='utf-8', method='xml').decode()
+
+    def parse_soap_response(self, response_text: str) -> Tuple[bool, str, Dict[str, Any]]:
+        """Parse SOAP response from BSE STAR MF"""
+        try:
+            root = ET.fromstring(response_text)
+            body = root.find(f".//{{{SOAP_NS['soap']}}}Body")
+            if body is None:
+                raise BSEOrderError("Invalid SOAP response: missing Body element")
+
+            # Check for fault
+            fault = body.find(f".//{{{SOAP_NS['soap']}}}Fault")
+            if fault is not None:
+                code = fault.find('.//faultcode')
+                reason = fault.find('.//faultstring')
+                raise BSESoapFault(
+                    f"SOAP fault: {reason.text if reason is not None else 'Unknown error'}",
+                    code.text if code is not None else 'Unknown'
+                )
+
+            # Parse response
+            result = body.find(f".//{{{SOAP_NS['star']}}}Response")
+            if result is None:
+                raise BSEOrderError("Invalid SOAP response: missing Response element")
+
+            return True, result.text, {}
+
+        except ET.ParseError as e:
+            logger.error(f"Failed to parse SOAP response: {e}", exc_info=True)
+            raise BSEOrderError(f"Invalid SOAP response: {str(e)}")
 
     async def _send_soap_request(self, soap_method: str, params: Dict[str, Any]) -> OrderResponse:
         """Send SOAP request to BSE and parse response"""
@@ -110,12 +170,30 @@ class BSEOrderPlacer:
             if not hasattr(self.client.service, soap_method):
                 raise BSEIntegrationError(f"SOAP method {soap_method} not found")
 
+            # Create SOAP envelope
+            envelope = self.create_soap_envelope(soap_method, params)
+            logger.debug(f"SOAP Request: {envelope}")
+
             def soap_call():
                 return getattr(self.client.service, soap_method)(**params)
 
-            response = await asyncio.to_thread(soap_call)
-            logger.debug(f"BSE Response: {response}")
+            # Send request with retry logic
+            max_retries = bse_settings.BSE_MAX_RETRIES
+            retry_delay = bse_settings.BSE_RETRY_DELAY
             
+            for attempt in range(max_retries):
+                try:
+                    response = await asyncio.to_thread(soap_call)
+                    logger.debug(f"BSE Response: {response}")
+                    break
+                except (TransportError, RequestException) as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    logger.warning(f"Retry {attempt + 1}/{max_retries} after error: {e}")
+                    await asyncio.sleep(retry_delay)
+            
+            # Parse response
+            success, message, details = self.parse_soap_response(str(response))
             return OrderResponse.from_pipe_separated(str(response))
 
         except Fault as e:
@@ -131,31 +209,66 @@ class BSEOrderPlacer:
             logger.error(f"Unexpected error: {e}", exc_info=True)
             raise BSEOrderError(f"Unexpected error: {str(e)}")
 
+    def _validate_response(self, response_text: str) -> Tuple[bool, str]:
+        """Validate BSE response and extract status"""
+        parts = response_text.split('|')
+        if len(parts) < 2:
+            raise BSEOrderError("Invalid response format")
+            
+        status_code = parts[0].strip()
+        message = parts[1].strip()
+        
+        if status_code == "100":
+            return True, message
+        else:
+            return False, message
+
     async def place_lumpsum_order(self, order_data: schemas.LumpsumOrderCreate, encrypted_password: str) -> OrderResponse:
         """Place lumpsum order (Purchase/Redemption)"""
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
 
+        # Validate fields
+        validate_transaction_code(order_data.transaction_code)
+        validate_reference_number(order_data.unique_ref_no)
+        validate_member_code(self.member_id)
+        validate_client_code(order_data.client_code)
+        validate_scheme_code(order_data.scheme_code)
+        
+        if order_data.amount:
+            validate_amount(str(order_data.amount))
+        if order_data.quantity:
+            validate_units(str(order_data.quantity))
+
         # Prepare parameters
         params = {
-            "TransCode": "NEW",
+            "TransCode": order_data.transaction_code,
             "TransNo": order_data.unique_ref_no,
-            "OrderId": "",
+            "OrderId": order_data.order_id or "",
             "UserID": self.user_id,
             "MemberId": self.member_id,
             "ClientCode": order_data.client_code,
             "SchemeCd": order_data.scheme_code,
-            "BuySell": "P" if order_data.transaction_type == "PURCHASE" else "R",
-            "BuySellType": "FRESH" if order_data.transaction_type == "PURCHASE" else "",
-            "DPTxn": "C" if order_data.dp_txn_mode == "CDSL" else "N",
+            "BuySell": order_data.transaction_type.value,
+            "BuySellType": order_data.buy_sell_type.value,
+            "DPTxn": order_data.dp_txn_mode.value,
             "OrderVal": str(order_data.amount or ""),
             "Qty": str(order_data.quantity or ""),
             "AllRedeem": "Y" if order_data.all_units_flag else "N",
             "FolioNo": order_data.folio_no or "",
-            "KYCStatus": order_data.kyc_status or "N",
-            "MinRedeem": "Y" if order_data.min_redeem_flag else "N",
+            "KYCStatus": order_data.kyc_status,
+            "MinRedeem": "Y" if order_data.min_redeem else "N",
             "DPC": "Y" if order_data.dpc_flag else "N",
-            "Password": encrypted_password
+            "SubBrCode": order_data.sub_broker_arn or "",
+            "EUIN": order_data.euin or "",
+            "EUINVal": "Y" if order_data.euin_declaration else "N",
+            "IPAdd": order_data.ip_address or "",
+            "Remarks": order_data.remarks or "",
+            "Password": encrypted_password,
+            "PassKey": "",
+            "Param1": "",
+            "Param2": "",
+            "Param3": ""
         }
 
         logger.info(f"Placing {order_data.transaction_type} order for {order_data.unique_ref_no}")
@@ -166,42 +279,128 @@ class BSEOrderPlacer:
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
 
+        # Validate fields
+        validate_transaction_code(sip_data.transaction_code)
+        validate_reference_number(sip_data.unique_ref_no)
+        validate_member_code(self.member_id)
+        validate_client_code(sip_data.client_code)
+        validate_scheme_code(sip_data.scheme_code)
+        validate_amount(str(sip_data.installment_amount))
+        validate_mandate_id(sip_data.mandate_id)
+        validate_date_format(sip_data.start_date.strftime("%d/%m/%Y"))
+
         params = {
-            "TransCode": "NEWSIP",
+            "TransCode": sip_data.transaction_code,
             "TransNo": sip_data.unique_ref_no,
             "SchemeCode": sip_data.scheme_code,
             "MemberCode": self.member_id,
             "ClientCode": sip_data.client_code,
             "UserID": self.user_id,
-            "TransMode": sip_data.transaction_mode,
-            "DpTxnMode": "C" if sip_data.dp_txn_mode == "CDSL" else "N",
+            "InternalRefNo": sip_data.internal_ref_no or "",
+            "TransMode": "P",  # Always Purchase for SIP
+            "DpTxnMode": sip_data.dp_txn_mode.value,
             "StartDate": sip_data.start_date.strftime("%d/%m/%Y"),
-            "FrequencyType": sip_data.frequency,
-            "FrequencyAllowed": "1",
-            "InstallmentAmount": str(sip_data.amount),
-            "NoOfInstallment": str(sip_data.installments or ""),
+            "FrequencyType": sip_data.frequency_type.value,
+            "FrequencyAllowed": str(sip_data.frequency_allowed),
+            "InstallmentAmount": str(sip_data.installment_amount),
+            "NoOfInstallment": str(sip_data.no_of_installments),
             "FolioNo": sip_data.folio_no or "",
-            "FirstOrderFlag": sip_data.first_order_today,
-            "MandateID": sip_data.mandate_id or "",
-            "Password": encrypted_password
+            "FirstOrderFlag": "Y" if sip_data.first_order_today else "N",
+            "SubBrCode": sip_data.sub_broker_arn or "",
+            "EUIN": sip_data.euin or "",
+            "EUINVal": "Y" if sip_data.euin_declaration else "N",
+            "DPC": "Y" if sip_data.dpc_flag else "N",
+            "RegDate": datetime.now().strftime("%d/%m/%Y"),
+            "IPAdd": sip_data.ip_address or "",
+            "Password": encrypted_password,
+            "PassKey": "",
+            "MandateID": sip_data.mandate_id,
+            "Brokerage": str(sip_data.brokerage or ""),
+            "Remarks": sip_data.remarks or "",
+            "KYCStatus": sip_data.kyc_status,
+            "Param1": "",
+            "Param2": "",
+            "Param3": ""
         }
 
         logger.info(f"Registering SIP for {sip_data.unique_ref_no}")
         return await self._send_soap_request("sipOrderEntryParam", params)
+
+    async def place_xsip_order(self, xsip_data: schemas.XSIPOrderCreate, encrypted_password: str) -> OrderResponse:
+        """Place new XSIP registration order"""
+        if not encrypted_password:
+            raise BSEValidationError("Encrypted password required")
+
+        # Validate fields
+        validate_transaction_code(xsip_data.transaction_code)
+        validate_reference_number(xsip_data.unique_ref_no)
+        validate_member_code(self.member_id)
+        validate_client_code(xsip_data.client_code)
+        validate_scheme_code(xsip_data.scheme_code)
+        validate_amount(str(xsip_data.installment_amount))
+        validate_mandate_id(xsip_data.mandate_id)
+        validate_date_format(xsip_data.start_date.strftime("%d/%m/%Y"))
+
+        params = {
+            "TransCode": "XSIP",
+            "TransNo": xsip_data.unique_ref_no,
+            "SchemeCode": xsip_data.scheme_code,
+            "MemberCode": self.member_id,
+            "ClientCode": xsip_data.client_code,
+            "UserID": self.user_id,
+            "InternalRefNo": xsip_data.internal_ref_no or "",
+            "TransMode": "P",  # Always Purchase for XSIP
+            "DpTxnMode": xsip_data.dp_txn_mode.value,
+            "StartDate": xsip_data.start_date.strftime("%d/%m/%Y"),
+            "FrequencyType": xsip_data.frequency_type.value,
+            "FrequencyAllowed": str(xsip_data.frequency_allowed),
+            "InstallmentAmount": str(xsip_data.installment_amount),
+            "NoOfInstallment": str(xsip_data.no_of_installments),
+            "FolioNo": xsip_data.folio_no or "",
+            "FirstOrderFlag": "Y" if xsip_data.first_order_today else "N",
+            "SubBrCode": xsip_data.sub_broker_arn or "",
+            "EUIN": xsip_data.euin or "",
+            "EUINVal": "Y" if xsip_data.euin_declaration else "N",
+            "DPC": "Y" if xsip_data.dpc_flag else "N",
+            "RegDate": datetime.now().strftime("%d/%m/%Y"),
+            "IPAdd": xsip_data.ip_address or "",
+            "Password": encrypted_password,
+            "PassKey": "",
+            "MandateID": xsip_data.mandate_id,
+            "Brokerage": str(xsip_data.brokerage or ""),
+            "Remarks": xsip_data.remarks or "",
+            "KYCStatus": xsip_data.kyc_status,
+            "XsipRegID": xsip_data.xsip_reg_id or "",
+            "Param1": "",
+            "Param2": "",
+            "Param3": ""
+        }
+
+        logger.info(f"Registering XSIP for {xsip_data.unique_ref_no}")
+        return await self._send_soap_request("xsipOrderEntryParam", params)
 
     async def modify_sip_order(self, sip_data: schemas.SIPOrderModify, encrypted_password: str) -> OrderResponse:
         """Modify existing SIP registration"""
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
 
+        # Validate fields
+        validate_transaction_code(sip_data.transaction_code)
+        validate_reference_number(sip_data.unique_ref_no)
+        validate_member_code(sip_data.member_id)
+        validate_client_code(sip_data.client_code)
+        
+        if sip_data.new_amount:
+            validate_amount(str(sip_data.new_amount))
+
         params = {
-            "TransCode": "MODSIP",
+            "TransCode": sip_data.transaction_code,
             "TransNo": sip_data.unique_ref_no,
             "RegId": sip_data.sip_reg_id,
-            "MemberCode": self.member_id,
+            "MemberCode": sip_data.member_id,
             "ClientCode": sip_data.client_code,
-            "UserID": self.user_id,
-            "Amount": str(sip_data.new_amount),
+            "UserID": sip_data.user_id,
+            "Amount": str(sip_data.new_amount or ""),
             "NoOfInstallment": str(sip_data.new_installments or ""),
             "Password": encrypted_password
         }
@@ -209,62 +408,81 @@ class BSEOrderPlacer:
         logger.info(f"Modifying SIP {sip_data.sip_reg_id}")
         return await self._send_soap_request("modifySipOrderParam", params)
 
-    async def cancel_sip_order(self, sip_reg_id: str, client_code: str, encrypted_password: str) -> OrderResponse:
-        """Cancel SIP registration"""
+    async def modify_xsip_order(self, xsip_data: schemas.XSIPOrderModify, encrypted_password: str) -> OrderResponse:
+        """Modify existing XSIP registration"""
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
 
+        # Validate fields
+        validate_transaction_code(xsip_data.transaction_code)
+        validate_reference_number(xsip_data.unique_ref_no)
+        validate_member_code(xsip_data.member_id)
+        validate_client_code(xsip_data.client_code)
+        
+        if xsip_data.new_amount:
+            validate_amount(str(xsip_data.new_amount))
+
         params = {
-            "TransCode": "CXLSIP",
-            "TransNo": f"CXL{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "RegId": sip_reg_id,
-            "MemberCode": self.member_id,
-            "ClientCode": payload_dict.get("client_code"),
-            "UserId": self.user_id,
-            "MandateID": payload_dict.get("mandate_id"),
-            "FolioNo": payload_dict.get("folio_no", ""),
-            "SIPAmount": str(payload_dict.get("installment_amount", "")), 
-            "SIPFrequency": payload_dict.get("frequency", "MONTHLY"),
-            "SIPStartDate": payload_dict.get("start_date").strftime("%d/%m/%Y"),
-            "SIPInstallments": str(payload_dict.get("no_of_installments", "")), 
-            "SIPRegistrationDate": datetime.now().strftime("%d/%m/%Y"),
-            "DPTxn": "C" if payload_dict.get("dp_txn_mode") == "CDSL" else "N",
-            "Remarks": payload_dict.get("remarks", ""),
-            "KYCStatus": payload_dict.get("kyc_status", "N"),
-            "SubberCode": payload_dict.get("sub_broker_code", ""),
-            "EUIN": payload_dict.get("euin", ""),
-            "EUINVal": "Y" if payload_dict.get("euin_declared") == "Y" else "N",
-            "IPAdd": payload_dict.get("ip_address", ""),
-            "Password": encrypted_password,
-            "PassKey": payload_dict.get("passkey", ""),
-            "Parma1": "", 
-            "Parma2": "", 
-            "Parma3": ""  
+            "TransCode": "MODXSIP",
+            "TransNo": xsip_data.unique_ref_no,
+            "XsipRegId": xsip_data.xsip_reg_id,
+            "MemberCode": xsip_data.member_id,
+            "ClientCode": xsip_data.client_code,
+            "UserID": xsip_data.user_id,
+            "Amount": str(xsip_data.new_amount or ""),
+            "NoOfInstallment": str(xsip_data.new_installments or ""),
+            "Password": encrypted_password
         }
 
-        logger.info(f"Cancelling SIP {sip_reg_id}")
-        return await self._send_soap_request("cancelSipOrderParam", params)
+        logger.info(f"Modifying XSIP {xsip_data.xsip_reg_id}")
+        return await self._send_soap_request("modifyXsipOrderParam", params)
 
     async def place_switch_order(self, switch_data: schemas.SwitchOrderCreate, encrypted_password: str) -> OrderResponse:
         """Place switch order between schemes"""
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
 
+        # Validate fields
+        validate_transaction_code(switch_data.transaction_code)
+        validate_reference_number(switch_data.unique_ref_no)
+        validate_member_code(self.member_id)
+        validate_client_code(switch_data.client_code)
+        validate_scheme_code(switch_data.from_scheme_code)
+        validate_scheme_code(switch_data.to_scheme_code)
+        
+        if switch_data.switch_amount:
+            validate_amount(str(switch_data.switch_amount))
+        if switch_data.switch_units:
+            validate_units(str(switch_data.switch_units))
+
         params = {
-            "TransCode": "NEW",
+            "TransCode": switch_data.transaction_code,
             "TransNo": switch_data.unique_ref_no,
+            "OrderId": switch_data.order_id or "",
             "UserID": self.user_id,
             "MemberId": self.member_id,
             "ClientCode": switch_data.client_code,
             "FromSchemeCd": switch_data.from_scheme_code,
             "ToSchemeCd": switch_data.to_scheme_code,
             "BuySell": "SO",  # Switch Out
-            "DPTxn": "C" if switch_data.dp_txn_mode == "CDSL" else "N",
-            "SwitchAmount": str(switch_data.amount or ""),
-            "SwitchUnits": str(switch_data.units or ""),
+            "BuySellType": switch_data.buy_sell_type.value,
+            "DPTxn": switch_data.dp_txn_mode.value,
+            "SwitchAmount": str(switch_data.switch_amount or ""),
+            "SwitchUnits": str(switch_data.switch_units or ""),
             "AllUnitsFlag": "Y" if switch_data.all_units_flag else "N",
             "FolioNo": switch_data.folio_no or "",
-            "Password": encrypted_password
+            "Remarks": switch_data.remarks or "",
+            "KYCStatus": switch_data.kyc_status,
+            "SubBrCode": switch_data.sub_broker_arn or "",
+            "EUIN": switch_data.euin or "",
+            "EUINVal": "Y" if switch_data.euin_declaration else "N",
+            "MinRedeem": "Y" if switch_data.min_redeem else "N",
+            "IPAdd": switch_data.ip_address or "",
+            "Password": encrypted_password,
+            "PassKey": "",
+            "Param1": "",
+            "Param2": "",
+            "Param3": ""
         }
 
         logger.info(f"Placing switch order for {switch_data.unique_ref_no}")
@@ -275,21 +493,48 @@ class BSEOrderPlacer:
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
 
+        # Validate fields
+        validate_transaction_code(spread_data.transaction_code)
+        validate_reference_number(spread_data.unique_ref_no)
+        validate_member_code(self.member_id)
+        validate_client_code(spread_data.client_code)
+        validate_scheme_code(spread_data.scheme_code)
+        validate_date_format(spread_data.redeem_date.strftime("%d/%m/%Y"))
+        
+        if spread_data.purchase_amount:
+            validate_amount(str(spread_data.purchase_amount))
+        if spread_data.redemption_amount:
+            validate_amount(str(spread_data.redemption_amount))
+
         params = {
-            "TransCode": "NEW",
+            "TransCode": spread_data.transaction_code,
             "TransNo": spread_data.unique_ref_no,
+            "OrderId": spread_data.order_id or "",
             "UserID": self.user_id,
             "MemberId": self.member_id,
             "ClientCode": spread_data.client_code,
             "SchemeCd": spread_data.scheme_code,
             "BuySell": spread_data.buy_sell,
-            "DPTxn": "C" if spread_data.dp_txn_mode == "CDSL" else "N",
+            "BuySellType": spread_data.buy_sell_type.value,
+            "DPTxn": spread_data.dp_txn_mode.value,
             "PurchaseAmount": str(spread_data.purchase_amount or ""),
             "RedemptionAmount": str(spread_data.redemption_amount or ""),
             "AllUnitsFlag": "Y" if spread_data.all_units_flag else "N",
             "RedeemDate": spread_data.redeem_date.strftime("%d/%m/%Y"),
             "FolioNo": spread_data.folio_no or "",
-            "Password": encrypted_password
+            "Remarks": spread_data.remarks or "",
+            "KYCStatus": spread_data.kyc_status,
+            "SubBrCode": spread_data.sub_broker_arn or "",
+            "EUIN": spread_data.euin or "",
+            "EUINVal": "Y" if spread_data.euin_declaration else "N",
+            "MinRedeem": "Y" if spread_data.min_redeem else "N",
+            "DPC": "Y" if spread_data.dpc_flag else "N",
+            "IPAdd": spread_data.ip_address or "",
+            "Password": encrypted_password,
+            "PassKey": "",
+            "Param1": "",
+            "Param2": "",
+            "Param3": ""
         }
 
         logger.info(f"Placing spread order for {spread_data.unique_ref_no}")
@@ -299,6 +544,9 @@ class BSEOrderPlacer:
         """Cancel any type of order"""
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
+
+        # Validate fields
+        validate_client_code(client_code)
 
         params = {
             "TransCode": "CXL",
@@ -313,10 +561,55 @@ class BSEOrderPlacer:
         logger.info(f"Cancelling order {order_id}")
         return await self._send_soap_request("cancelOrderParam", params)
 
-    async def get_order_status(self, order_id: str, client_code: str, encrypted_password: str) -> OrderResponse:
-        """Get status of any order"""
+    async def cancel_sip_order(self, sip_reg_id: str, client_code: str, encrypted_password: str) -> OrderResponse:
+        """Cancel existing SIP registration"""
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
+
+        # Validate fields
+        validate_client_code(client_code)
+
+        params = {
+            "TransCode": "CXLSIP",
+            "TransNo": f"CXLSIP{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "RegId": sip_reg_id,
+            "MemberCode": self.member_id,
+            "ClientCode": client_code,
+            "UserID": self.user_id,
+            "Password": encrypted_password
+        }
+
+        logger.info(f"Cancelling SIP registration {sip_reg_id}")
+        return await self._send_soap_request("cancelSipOrderParam", params)
+
+    async def cancel_xsip_order(self, xsip_reg_id: str, client_code: str, encrypted_password: str) -> OrderResponse:
+        """Cancel existing XSIP registration"""
+        if not encrypted_password:
+            raise BSEValidationError("Encrypted password required")
+
+        # Validate fields
+        validate_client_code(client_code)
+
+        params = {
+            "TransCode": "CXLXSIP",
+            "TransNo": f"CXLXSIP{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "XsipRegId": xsip_reg_id,
+            "MemberCode": self.member_id,
+            "ClientCode": client_code,
+            "UserID": self.user_id,
+            "Password": encrypted_password
+        }
+
+        logger.info(f"Cancelling XSIP registration {xsip_reg_id}")
+        return await self._send_soap_request("cancelXsipOrderParam", params)
+
+    async def get_order_status(self, order_id: str, client_code: str, encrypted_password: str) -> OrderResponse:
+        """Get status of any order by order ID"""
+        if not encrypted_password:
+            raise BSEValidationError("Encrypted password required")
+
+        # Validate fields
+        validate_client_code(client_code)
 
         params = {
             "OrderNo": order_id,
@@ -328,4 +621,222 @@ class BSEOrderPlacer:
 
         logger.info(f"Checking status for order {order_id}")
         return await self._send_soap_request("getOrderStatus", params)
+
+    async def get_orders_by_criteria(
+        self,
+        from_date: date,
+        to_date: date,
+        client_code: Optional[str],
+        transaction_type: Optional[str],
+        order_type: Optional[str],
+        sub_order_type: Optional[str],
+        settlement_type: Optional[str],
+        encrypted_password: str
+    ) -> OrderResponse:
+        """
+        Get orders by various criteria as per BSE specifications.
+        
+        Args:
+            from_date: Start date for order search (DD/MM/YYYY)
+            to_date: End date for order search (DD/MM/YYYY)
+            client_code: Optional client code to filter orders
+            transaction_type: Optional filter (P/R)
+            order_type: Optional filter (ALL/MFD/SIP/XSIP/STP/SWP)
+            sub_order_type: Optional filter (ALL/NFO/SPOR/SWITCH)
+            settlement_type: Optional filter (ALL/L0/L1/OTHERS)
+            encrypted_password: Encrypted password for authentication
+        """
+        if not encrypted_password:
+            raise BSEValidationError("Encrypted password required")
+
+        # Validate dates
+        validate_date_format(from_date.strftime("%d/%m/%Y"))
+        validate_date_format(to_date.strftime("%d/%m/%Y"))
+        
+        if from_date > to_date:
+            raise BSEValidationError("From date cannot be later than to date")
+
+        # Validate optional fields
+        if client_code:
+            validate_client_code(client_code)
+        if transaction_type and transaction_type not in ['P', 'R']:
+            raise BSEValidationError("Transaction type must be P or R")
+        if order_type and order_type not in ['ALL', 'MFD', 'SIP', 'XSIP', 'STP', 'SWP']:
+            raise BSEValidationError("Invalid order type")
+        if sub_order_type and sub_order_type not in ['ALL', 'NFO', 'SPOR', 'SWITCH']:
+            raise BSEValidationError("Invalid sub order type")
+        if settlement_type and settlement_type not in ['ALL', 'L0', 'L1', 'OTHERS']:
+            raise BSEValidationError("Invalid settlement type")
+
+        params = {
+            "FromDate": from_date.strftime("%d/%m/%Y"),
+            "ToDate": to_date.strftime("%d/%m/%Y"),
+            "UserID": self.user_id,
+            "MemberId": self.member_id,
+            "ClientCode": client_code or "",
+            "TransactionType": transaction_type or "",
+            "OrderType": order_type or "ALL",
+            "SubOrderType": sub_order_type or "ALL",
+            "SettlementType": settlement_type or "ALL",
+            "Password": encrypted_password,
+            "OrderNo": "",  # Empty when searching by criteria
+        }
+
+        logger.info(f"Fetching orders from {from_date} to {to_date}")
+        return await self._send_soap_request("getOrderStatus", params)
+
+    def parse_order_status_response(self, response_text: str) -> Dict[str, Any]:
+        """
+        Parse BSE order status response into structured format.
+        Handles all fields as per BSE manual.
+        """
+        try:
+            parts = response_text.split('|')
+            status_dict = {
+                "status_code": parts[0] if len(parts) > 0 else None,
+                "member_code": parts[1] if len(parts) > 1 else None,
+                "client_code": parts[2] if len(parts) > 2 else None,
+                "order_no": parts[3] if len(parts) > 3 else None,
+                "bse_remarks": parts[4] if len(parts) > 4 else None,
+                "order_status": parts[5] if len(parts) > 5 else None,
+                "order_remarks": parts[6] if len(parts) > 6 else None,
+                "scheme_code": parts[7] if len(parts) > 7 else None,
+                "scheme_name": parts[8] if len(parts) > 8 else None,
+                "isin": parts[9] if len(parts) > 9 else None,
+                "buy_sell": parts[10] if len(parts) > 10 else None,
+                "amount": float(parts[11]) if len(parts) > 11 and parts[11] else None,
+                "quantity": float(parts[12]) if len(parts) > 12 and parts[12] else None,
+                "allotted_nav": float(parts[13]) if len(parts) > 13 and parts[13] else None,
+                "allotted_units": float(parts[14]) if len(parts) > 14 and parts[14] else None,
+                "allotment_date": parts[15] if len(parts) > 15 else None,
+                "valid_flag": parts[16] if len(parts) > 16 else None,
+                "internal_ref_no": parts[17] if len(parts) > 17 else None,
+                "dp_txn": parts[18] if len(parts) > 18 else None,
+                "settlement_type": parts[19] if len(parts) > 19 else None,
+                "order_type": parts[20] if len(parts) > 20 else None,
+                "sub_order_type": parts[21] if len(parts) > 21 else None,
+                "euin": parts[22] if len(parts) > 22 else None,
+                "euin_flag": parts[23] if len(parts) > 23 else None,
+                "sub_broker_arn": parts[24] if len(parts) > 24 else None,
+                "payment_status": parts[25] if len(parts) > 25 else None,
+                "settlement_status": parts[26] if len(parts) > 26 else None,
+                "sip_reg_id": parts[27] if len(parts) > 27 else None,
+                "sub_broker_code": parts[28] if len(parts) > 28 else None,
+                "kyc_flag": parts[29] if len(parts) > 29 else None,
+                "min_redeem_flag": parts[30] if len(parts) > 30 else None
+            }
+
+            # Convert to proper types
+            if status_dict["allotment_date"]:
+                try:
+                    status_dict["allotment_date"] = datetime.strptime(
+                        status_dict["allotment_date"], "%d/%m/%Y"
+                    ).date()
+                except ValueError:
+                    logger.warning(f"Invalid allotment date format: {status_dict['allotment_date']}")
+
+            # Validate status codes
+            if status_dict["status_code"] not in ["100", "101"]:
+                error_msg = BSE_ERROR_CODES.get(
+                    status_dict["status_code"], 
+                    f"Unknown error code: {status_dict['status_code']}"
+                )
+                logger.error(f"Order status error: {error_msg}")
+                raise BSEOrderError(error_msg, status_dict["status_code"])
+
+            return status_dict
+
+        except Exception as e:
+            logger.error(f"Failed to parse order status response: {e}", exc_info=True)
+            raise BSEOrderError(f"Invalid order status response format: {str(e)}")
+
+    async def get_allotment_statement(
+        self,
+        from_date: date,
+        to_date: date,
+        client_code: Optional[str],
+        order_type: Optional[str],
+        sub_order_type: Optional[str],
+        settlement_type: Optional[str],
+        encrypted_password: str
+    ) -> OrderResponse:
+        """
+        Get allotment statement for orders as per BSE specifications.
+        
+        Args:
+            from_date: Start date (DD/MM/YYYY)
+            to_date: End date (DD/MM/YYYY)
+            client_code: Optional client code
+            order_type: Optional (ALL/MFD/SIP/XSIP/STP/SWP)
+            sub_order_type: Optional (ALL/NFO/SPOR/SWITCH)
+            settlement_type: Optional (ALL/L0/L1/OTHERS)
+            encrypted_password: Encrypted password
+        """
+        if not encrypted_password:
+            raise BSEValidationError("Encrypted password required")
+
+        # Validate dates
+        validate_date_format(from_date.strftime("%d/%m/%Y"))
+        validate_date_format(to_date.strftime("%d/%m/%Y"))
+
+        params = {
+            "FromDate": from_date.strftime("%d/%m/%Y"),
+            "ToDate": to_date.strftime("%d/%m/%Y"),
+            "UserID": self.user_id,
+            "MemberId": self.member_id,
+            "ClientCode": client_code or "",
+            "OrderType": order_type or "ALL",
+            "SubOrderType": sub_order_type or "ALL",
+            "SettlementType": settlement_type or "ALL",
+            "Password": encrypted_password,
+            "OrderNo": ""
+        }
+
+        logger.info(f"Fetching allotment statement from {from_date} to {to_date}")
+        return await self._send_soap_request("getAllotmentStatement", params)
+
+    async def get_redemption_statement(
+        self,
+        from_date: date,
+        to_date: date,
+        client_code: Optional[str],
+        order_type: Optional[str],
+        sub_order_type: Optional[str],
+        settlement_type: Optional[str],
+        encrypted_password: str
+    ) -> OrderResponse:
+        """
+        Get redemption statement for orders as per BSE specifications.
+        
+        Args:
+            from_date: Start date (DD/MM/YYYY)
+            to_date: End date (DD/MM/YYYY)
+            client_code: Optional client code
+            order_type: Optional (ALL/MFD/SIP/XSIP/STP/SWP)
+            sub_order_type: Optional (ALL/NFO/SPOR/SWITCH)
+            settlement_type: Optional (ALL/L0/L1/OTHERS)
+            encrypted_password: Encrypted password
+        """
+        if not encrypted_password:
+            raise BSEValidationError("Encrypted password required")
+
+        # Validate dates
+        validate_date_format(from_date.strftime("%d/%m/%Y"))
+        validate_date_format(to_date.strftime("%d/%m/%Y"))
+
+        params = {
+            "FromDate": from_date.strftime("%d/%m/%Y"),
+            "ToDate": to_date.strftime("%d/%m/%Y"),
+            "UserID": self.user_id,
+            "MemberId": self.member_id,
+            "ClientCode": client_code or "",
+            "OrderType": order_type or "ALL",
+            "SubOrderType": sub_order_type or "ALL",
+            "SettlementType": settlement_type or "ALL",
+            "Password": encrypted_password,
+            "OrderNo": ""
+        }
+
+        logger.info(f"Fetching redemption statement from {from_date} to {to_date}")
+        return await self._send_soap_request("getRedemptionStatement", params)
 
