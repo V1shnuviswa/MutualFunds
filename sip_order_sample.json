@@ -1,0 +1,22 @@
+{
+  "transactionCode": "NEW",
+  "uniqueRefNo": "SIP123456789",
+  "userId": "USER001",
+  "memberId": "MEMBER123",
+  "clientCode": "CLIENT001",
+  "schemeCode": "BSE123456",
+  "dpTxnMode": "P",
+  "frequencyType": "MONTHLY",
+  "frequencyAllowed": 1,
+  "installmentAmount": 5000,
+  "noOfInstallments": 12,
+  "startDate": "2023-12-01",
+  "firstOrderToday": false,
+  "mandateId": "MANDATE001",
+  "folioNo": "",
+  "kycStatus": "Y",
+  "euin": "",
+  "euinDeclaration": false,
+  "ipAddress": "127.0.0.1",
+  "remarks": "Test SIP order"
+} 

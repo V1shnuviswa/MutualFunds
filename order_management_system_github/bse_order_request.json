@@ -1,0 +1,16 @@
+{
+    "TransCode": "NEW",
+    "TransNo": "REF123456789",
+    "UserId": "BSEUSER123",
+    "MemberId": "MEMBER456",
+    "ClientCode": "CLIENT789",
+    "SchemeCd": "SCHEME001",
+    "BuySell": "P",
+    "BuySellType": "FRESH",
+    "DPTxn": "PHYSICAL",
+    "Amount": 5000.00,
+    "DPC": "N",
+    "Password": "encrypted_password",
+    "PassKey": "pass_key_value",
+    "IPAdd": "192.168.1.1"
+} 

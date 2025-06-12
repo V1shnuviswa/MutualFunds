@@ -1,0 +1,14 @@
+{
+  "transactionCode": "NEW",
+  "uniqueRefNo": "ORD123456789",
+  "userId": "USER001",
+  "memberId": "MEMBER123",
+  "clientCode": "CLIENT001",
+  "schemeCode": "BSE123456",
+  "transactionType": "P",
+  "dpTxnMode": "P",
+  "amount": 5000,
+  "kycStatus": "Y",
+  "folioNo": "",
+  "remarks": "Test lumpsum order"
+} 

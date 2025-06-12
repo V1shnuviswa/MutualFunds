@@ -1,0 +1,16 @@
+{
+  "uniqueRefNo": "ORD123456789",
+  "clientCode": "CLIENT001",
+  "schemeCode": "BSE123456",
+  "transactionType": "PURCHASE",
+  "dpTxnMode": "P",
+  "amount": 5000,
+  "quantity": null,
+  "folioNo": "",
+  "euinDeclared": "Y", 
+  "euin": "",
+  "subArnCode": "",
+  "remarks": "Test lumpsum order",
+  "ipAddress": "127.0.0.1",
+  "allUnitsFlag": false
+} 

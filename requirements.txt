@@ -1,14 +1,15 @@
-fastapi>=0.68.0,<0.69.0
-uvicorn>=0.15.0,<0.16.0
-sqlalchemy>=1.4.0,<1.5.0
-sqlalchemy-utils>=0.41.0  # For database utilities
-pydantic>=1.8.0,<2.0.0
-python-jose[cryptography]>=3.3.0,<3.4.0
-passlib[bcrypt]>=1.7.4,<1.8.0
-databases[sqlite]
-python-multipart>=0.0.5,<0.0.6
-zeep>=4.1.0,<4.2.0  # For BSE SOAP API
-razorpay>=1.3.0  # For payment gateway
-aiosmtplib>=1.1.6  # For async SMTP
-python-dotenv>=0.19.0  # For environment variables
-
+fastapi==0.103.1
+uvicorn==0.23.2
+sqlalchemy==2.0.20
+pydantic==2.3.0
+pydantic-settings==2.0.3
+python-jose==3.3.0
+passlib==1.7.4
+python-multipart==0.0.6
+requests==2.31.0
+zeep==4.2.1
+aiohttp==3.8.5
+asyncio==3.4.3
+databases==0.8.0
+email-validator==2.0.0
+python-dotenv==1.0.0 
