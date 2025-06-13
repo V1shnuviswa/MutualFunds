@@ -1,0 +1,18 @@
+2025-06-12 13:10:41,832 - bse_test - INFO - === Authenticating with BSE API ===
+2025-06-12 13:10:41,834 - bse_test - DEBUG - Sending auth request to http://localhost:8000/auth/login
+2025-06-12 13:10:41,834 - bse_test - DEBUG - Auth credentials: username=6385101
+2025-06-12 13:10:41,838 - urllib3.connectionpool - DEBUG - Starting new HTTP connection (1): localhost:8000
+2025-06-12 13:10:44,159 - urllib3.connectionpool - DEBUG - http://localhost:8000 "POST /auth/login HTTP/11" 200 194
+2025-06-12 13:10:44,159 - bse_test - DEBUG - Auth response status: 200
+2025-06-12 13:10:44,159 - bse_test - DEBUG - Auth response headers: {'date': 'Thu, 12 Jun 2025 07:40:43 GMT', 'server': 'uvicorn', 'content-length': '194', 'content-type': 'application/json'}
+2025-06-12 13:10:44,165 - bse_test - INFO - Authentication successful!
+2025-06-12 13:10:44,165 - bse_test - DEBUG - Full token data: {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2Mzg1MTAxIiwibWVtYmVyX2lkIjoiNjM4NTEiLCJleHAiOjE3NDk3MTU4NDR9.2LrJPwuTNeIhzTg_cbP8RcN8r9kWSEYveH866Fsk47s', 'token_type': 'bearer'}
+2025-06-12 13:33:30,872 - bse_test - INFO - === Authenticating with BSE API ===
+2025-06-12 13:33:30,872 - bse_test - DEBUG - Sending auth request to http://localhost:8000/auth/login
+2025-06-12 13:33:30,872 - bse_test - DEBUG - Auth credentials: username=6385101
+2025-06-12 13:33:30,874 - urllib3.connectionpool - DEBUG - Starting new HTTP connection (1): localhost:8000
+2025-06-12 13:33:33,196 - urllib3.connectionpool - DEBUG - http://localhost:8000 "POST /auth/login HTTP/11" 200 194
+2025-06-12 13:33:33,197 - bse_test - DEBUG - Auth response status: 200
+2025-06-12 13:33:33,197 - bse_test - DEBUG - Auth response headers: {'date': 'Thu, 12 Jun 2025 08:03:32 GMT', 'server': 'uvicorn', 'content-length': '194', 'content-type': 'application/json'}
+2025-06-12 13:33:33,197 - bse_test - INFO - Authentication successful!
+2025-06-12 13:33:33,197 - bse_test - DEBUG - Full token data: {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2Mzg1MTAxIiwibWVtYmVyX2lkIjoiNjM4NTEiLCJleHAiOjE3NDk3MTcyMTN9.YP4ghYCevkBcKmrFZgEpR8TZsXFjZUmfiIcPeWrla3Q', 'token_type': 'bearer'}
