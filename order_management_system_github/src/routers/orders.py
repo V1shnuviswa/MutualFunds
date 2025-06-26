@@ -82,6 +82,41 @@ async def place_lumpsum_order(
                 detail="Either Amount or Qty must be provided"
             )
 
+        # Check if scheme exists, if not add it automatically
+        scheme_code = processed_payload.get("SchemeCd")
+        existing_scheme = db.query(models.Scheme).filter(models.Scheme.scheme_code == scheme_code).first()
+        if not existing_scheme:
+            logger.info(f"Scheme {scheme_code} not found, adding automatically")
+            new_scheme = models.Scheme(
+                scheme_code=scheme_code,
+                scheme_name=f"Auto-added Scheme {scheme_code}",
+                is_active=True
+            )
+            db.add(new_scheme)
+            db.commit()
+            logger.info(f"Added scheme {scheme_code} to database")
+            
+        # Check if client exists, if not add it automatically
+        client_code = processed_payload.get("ClientCode")
+        existing_client = db.query(models.Client).filter(models.Client.client_code == client_code).first()
+        if not existing_client:
+            logger.info(f"Client {client_code} not found, adding automatically")
+            new_client = models.Client(
+                client_code=client_code,
+                client_name=f"Auto-added Client {client_code}",
+                kyc_status="Y",
+                created_by_user_id=current_user.id
+            )
+            db.add(new_client)
+            db.commit()
+            logger.info(f"Added client {client_code} to database")
+
+        # Convert boolean euin_declared to 'Y'/'N' string
+        if isinstance(order.EUINFlag, bool):
+            euin_declared = 'Y' if order.EUINFlag else 'N'
+        else:
+            euin_declared = order.EUINFlag if order.EUINFlag in ['Y', 'N'] else 'N'
+
         # Step 4: Save order to DB
         db_order = crud.create_lumpsum_order(
             db=db,
@@ -112,7 +147,7 @@ async def place_lumpsum_order(
                 "Qty": str(order.Qty if order.Qty is not None else ""),
                 "AllRedeem": order.AllRedeem,
                 "KYCStatus": order.KYCStatus,
-                "EUINVal": order.EUINFlag,
+                "EUINVal": euin_declared,
                 "MinRedeem": order.MinRedeem,
                 "DPC": order.DPC,
                 "IPAdd": order.IPAdd,

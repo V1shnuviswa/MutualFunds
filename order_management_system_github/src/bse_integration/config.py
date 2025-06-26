@@ -19,7 +19,11 @@ except ImportError:
     pass
 
 class BSESettings(BaseSettings):
-    model_config = ConfigDict(env_file=".env", case_sensitive=True)
+    model_config = ConfigDict(
+        env_file=".env", 
+        case_sensitive=True,
+        extra="ignore"
+    )
 
     # Authentication settings
     BSE_USER_ID: str = "6385101"  # Updated with actual credentials

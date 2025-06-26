@@ -1,40 +1,14 @@
-# Order Management System with BSE Integration
+# Order Management System with BSE STAR MF Integration
 
-## Overview
-
-This project is a FastAPI-based API designed for managing mutual fund orders. It includes functionality for user authentication, placing lumpsum and SIP orders, and integrates with the BSE STAR MF platform for authentication, client registration, and order placement.
-
-## Features
-
-*   **User Authentication**: Secure user registration and login using JWT tokens.
-*   **BSE Client Registration**: Register and update client details via the BSE STAR MF Client Master API (using direct HTTP POST).
-*   **BSE Authentication**: Authenticate with the BSE platform to obtain session credentials (using SOAP).
-*   **Lumpsum Order Placement**: Submit lumpsum purchase/redemption orders via the BSE STAR MF Order Entry API (using SOAP).
-*   **SIP Order Registration**: Register Systematic Investment Plans (SIPs) via the BSE STAR MF Order Entry API (using SOAP).
-*   **Database**: Uses SQLAlchemy and SQLite for data persistence.
-*   **API Documentation**: Automatic interactive API documentation provided by FastAPI (Swagger UI/ReDoc).
-
-## Technology Stack
-
-*   **Backend**: Python 3.11+, FastAPI
-*   **Database**: SQLAlchemy, SQLite
-*   **BSE Integration**: 
-    *   `requests` (for Client Registration - POST)
-    *   `zeep` (for Authentication & Order Entry - SOAP)
-*   **Authentication**: JWT (python-jose), Passlib
-*   **Configuration**: Pydantic-Settings
-*   **Testing**: unittest, unittest.mock
+This system provides an API for managing mutual fund orders, integrating with BSE STAR MF for order placement, and tracking order status updates.
 
 ## Project Structure
 
 ```
 order_management_system_github/
-├── docs/                 # Documentation files (API structure, DB schema, integration notes, etc.)
-├── src/                  # Source code for the FastAPI application
-│   ├── bse_integration/  # Modules for interacting with BSE APIs
-│   ├── routers/          # API endpoint definitions
-│   ├── __init__.py
-│   ├── crud.py           # Database Create, Read, Update, Delete operations
+├── src/
+│   ├── bse_integration/  # BSE STAR MF API integration code
+│   ├── routers/          # FastAPI router endpoints
 │   ├── database.py       # Database session setup
 │   ├── dependencies.py   # FastAPI dependencies (e.g., authentication)
 │   ├── main.py           # FastAPI application entry point
@@ -49,52 +23,118 @@ order_management_system_github/
 ├── .gitignore            # Specifies intentionally untracked files that Git should ignore
 ├── README.md             # This file
 ├── requirements.txt      # Python package dependencies
-└── setup_db.py           # Script to initialize the database
+├── setup_db.py           # Script to initialize the database
+├── migration.py          # Script to migrate data from SQLite to PostgreSQL
+├── docker-compose.yml    # Docker Compose configuration for PostgreSQL and pgAdmin
+└── Dockerfile            # Docker configuration for the application
 ```
 
 ## Setup Instructions
 
-1.  **Clone the Repository**:
-    ```bash
-    git clone <repository-url>
-    cd order_management_system_github
-    ```
+### Option 1: Using Docker (PostgreSQL)
 
-2.  **Create and Activate Virtual Environment**:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
+1. **Clone the Repository**:
+   ```bash
+   git clone <repository-url>
+   cd order_management_system_github
+   ```
 
-3.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+2. **Configure Environment Variables**:
+   * Copy the example environment file:
+     ```bash
+     cp .env.example .env 
+     ```
+   * Edit the `.env` file with your settings if needed
 
-4.  **Configure Environment Variables**:
-    *   Copy the example environment file:
-        ```bash
-        cp .env.example .env 
-        ```
-    *   Edit the `.env` file and add your actual BSE STAR MF credentials (User ID, Password, Member Code).
-    *   Verify the BSE API URLs (Base URL, Paths, WSDLs) are correct for your target environment (Demo/Production).
+3. **Run with Docker Compose**:
+   ```bash
+   docker-compose up -d
+   ```
+   
+   This will:
+   - Start a PostgreSQL database
+   - Start pgAdmin (available at http://localhost:5050)
+   - Build and run the application
+   - Migrate data from SQLite to PostgreSQL
+   - Start the API server
 
-5.  **Initialize the Database**:
-    ```bash
-    python setup_db.py
-    ```
-    This will create the `order_management.db` SQLite file.
+   The API will be available at `http://localhost:8000`.
+   Interactive API documentation (Swagger UI) will be at `http://localhost:8000/docs`.
 
-## Running the Application
+### Option 2: Manual Setup (PostgreSQL)
 
-Use Uvicorn to run the FastAPI application:
+1. **Clone the Repository**:
+   ```bash
+   git clone <repository-url>
+   cd order_management_system_github
+   ```
 
-```bash
-uvicorn src.main:app --reload
-```
+2. **Create and Activate Virtual Environment**:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   ```
 
-The API will be available at `http://127.0.0.1:8000`.
-Interactive API documentation (Swagger UI) will be at `http://127.0.0.1:8000/docs`.
+3. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure Environment Variables**:
+   * Copy the example environment file:
+     ```bash
+     cp .env.example .env 
+     ```
+   * Edit the `.env` file and add your database connection details and BSE credentials
+
+5. **Set up PostgreSQL Database**:
+   * Install PostgreSQL if not already installed
+   * Create a database named `order_management`
+   * Update the DATABASE_URL in the .env file if needed
+
+6. **Migrate Data from SQLite to PostgreSQL**:
+   ```bash
+   python migration.py
+   ```
+
+7. **Run the Application**:
+   ```bash
+   uvicorn src.main:app --reload
+   ```
+
+   The API will be available at `http://127.0.0.1:8000`.
+   Interactive API documentation (Swagger UI) will be at `http://127.0.0.1:8000/docs`.
+
+### Option 3: Local Setup with SQLite
+
+If you prefer to use SQLite (the original database), follow the manual setup steps above but make the following changes:
+
+1. Modify `.env` to use SQLite:
+   ```
+   DATABASE_URL=sqlite:///./order_management.db
+   ```
+
+2. Initialize the SQLite database:
+   ```bash
+   python setup_db.py
+   ```
+
+## pgAdmin Setup (For Docker Option)
+
+When using the Docker setup, pgAdmin is available at http://localhost:5050.
+
+1. Login with:
+   * Email: admin@example.com
+   * Password: admin
+
+2. Connect to the PostgreSQL server:
+   * Right-click on "Servers" → "Register" → "Server"
+   * Name: Order Management System
+   * Connection tab:
+     * Host: postgres
+     * Port: 5432
+     * Username: postgres
+     * Password: postgres
 
 ## Running Tests
 
@@ -110,17 +150,17 @@ python tests/test_client_registration.py
 
 ## Important Notes
 
-*   **Network Access**: Full functionality, especially BSE integration, requires the application environment to have network access to the relevant BSE STAR MF API endpoints.
-*   **Validation**: The BSE integration components were developed based on reference code and documentation. Due to sandbox limitations, end-to-end testing was performed using mocks. Thorough testing in an environment connected to BSE is crucial before production use. Refer to `docs/bse_integration_external_validation_guide.md`.
-*   **Credentials**: Ensure your `.env` file is kept secure and is not committed to version control.
-*   **Passkey**: The `passkey` required for BSE authentication and order placement needs to be handled securely. The current implementation might use placeholders or require user input; adapt this as needed for your security requirements.
+* **Network Access**: Full functionality, especially BSE integration, requires the application environment to have network access to the relevant BSE STAR MF API endpoints.
+* **Validation**: The BSE integration components were developed based on reference code and documentation. Due to sandbox limitations, end-to-end testing was performed using mocks. Thorough testing in an environment connected to BSE is crucial before production use. Refer to `docs/bse_integration_external_validation_guide.md`.
+* **Credentials**: Ensure your `.env` file is kept secure and is not committed to version control.
+* **Passkey**: The `passkey` required for BSE authentication and order placement needs to be handled securely. The current implementation might use placeholders or require user input; adapt this as needed for your security requirements.
 
 ## Documentation
 
 Detailed documentation can be found in the `/docs` directory, including:
-*   API Structure
-*   Database Schema
-*   BSE Integration Design Notes
-*   External Validation Guide
-*   Client Registration Update Notes
+* API Structure
+* Database Schema
+* BSE Integration Design Notes
+* External Validation Guide
+* Client Registration Update Notes
 

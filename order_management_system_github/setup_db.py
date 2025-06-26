@@ -5,17 +5,17 @@ from sqlalchemy_utils import database_exists, create_database
 from src.database import Base
 from src.models import (
     User, Client, Scheme, Order, SIPRegistration, 
-    Mandate, OrderStatusHistory
+    Mandate, OrderStatusHistory, ClientRegistrationState
 )
 
 def setup_database():
     """
     Set up the database and create all tables.
     """
-    # Get database URL from environment variable or use default SQLite database
+    # Get database URL from environment variable or use default PostgreSQL database
     database_url = os.getenv(
         "DATABASE_URL",
-        "sqlite:///./order_management.db"  # This is correct as setup_db.py is now in the root directory
+        "postgresql://postgres:postgres@localhost:5432/order_management"
     )
 
     print(f"Setting up database at: {database_url}")
@@ -30,6 +30,11 @@ def setup_database():
             print("Created new database")
         else:
             print("Database already exists")
+
+        # Drop all tables first to ensure clean creation
+        print("Dropping existing tables...")
+        Base.metadata.drop_all(bind=engine)
+        print("All existing tables dropped")
 
         # Create all tables
         print("Creating tables...")

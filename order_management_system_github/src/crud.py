@@ -8,7 +8,6 @@ import secrets
 from sqlalchemy import select, update, func, and_, or_, desc
 from sqlalchemy.orm import Session, selectinload
 from . import models, schemas, security
-from .database import execute_with_retry
 
 # --- User CRUD --- #
 
@@ -37,26 +36,20 @@ def get_client(db: Session, client_code: str):
     return db.get(models.Client, client_code)
 
 def create_client(db: Session, client: schemas.ClientCreate, user_id: int):
-    def _create_client(session):
-        db_client = models.Client(**client.model_dump(), created_by_user_id=user_id)
-        session.add(db_client)
-        session.commit()
-        session.refresh(db_client)
-        return db_client
-    
-    return execute_with_retry(db, _create_client)
+    db_client = models.Client(**client.model_dump(), created_by_user_id=user_id)
+    db.add(db_client)
+    db.commit()
+    db.refresh(db_client)
+    return db_client
 
 def update_client(db: Session, client_code: str, client_data: schemas.ClientCreate):
-    def _update_client(session):
-        db_client = get_client(session, client_code=client_code)
-        if db_client:
-            for key, value in client_data.model_dump(exclude_unset=True).items():
-                setattr(db_client, key, value)
-        session.commit()
-        session.refresh(db_client)
-        return db_client
-    
-    return execute_with_retry(db, _update_client)
+    db_client = get_client(db, client_code=client_code)
+    if db_client:
+        for key, value in client_data.model_dump(exclude_unset=True).items():
+            setattr(db_client, key, value)
+    db.commit()
+    db.refresh(db_client)
+    return db_client
 
 # --- Scheme CRUD --- #
 
@@ -74,6 +67,14 @@ def create_scheme(db: Session, scheme: schemas.SchemeCreate):
 
 def create_lumpsum_order(db: Session, order_data: dict, user_id: int):
     # Map BSE field names to database field names
+    
+    # Convert euin_declared to 'Y'/'N' string if it's a boolean
+    euin_flag = order_data.get("EUINFlag")
+    if isinstance(euin_flag, bool):
+        euin_declared = 'Y' if euin_flag else 'N'
+    else:
+        euin_declared = euin_flag if euin_flag in ['Y', 'N'] else 'N'
+    
     db_order = models.Order(
         unique_ref_no=order_data.get("RefNo"),
         client_code=order_data.get("ClientCode"),
@@ -87,7 +88,7 @@ def create_lumpsum_order(db: Session, order_data: dict, user_id: int):
         user_id=user_id,
         ip_address=order_data.get("IPAdd"),
         euin=order_data.get("EUIN"),
-        euin_declared=order_data.get("EUINFlag") == "Y",
+        euin_declared=euin_declared,  # Use the converted string value
         sub_arn_code=order_data.get("SubBrokerARN"),
         dp_txn_mode=order_data.get("DPTxn"),
         status_message=order_data.get("Remarks")
@@ -99,6 +100,13 @@ def create_lumpsum_order(db: Session, order_data: dict, user_id: int):
 
 def create_sip_registration_order(db: Session, sip_data: schemas.SIPOrderCreate, user_id: int):
     # Create the initial order record
+    
+    # Convert euin_declaration to 'Y'/'N' string if it's a boolean
+    if isinstance(sip_data.euin_declaration, bool):
+        euin_declared = 'Y' if sip_data.euin_declaration else 'N'
+    else:
+        euin_declared = sip_data.euin_declaration if sip_data.euin_declaration in ['Y', 'N'] else 'N'
+    
     db_order = models.Order(
         unique_ref_no=sip_data.unique_ref_no,
         client_code=sip_data.client_code,
@@ -111,7 +119,7 @@ def create_sip_registration_order(db: Session, sip_data: schemas.SIPOrderCreate,
         user_id=user_id,
         ip_address=sip_data.ip_address,
         euin=sip_data.euin,
-        euin_declared=sip_data.euin_declaration,  # Fixed: use euin_declaration instead of euin_declared
+        euin_declared=euin_declared,  # Use the converted string value
         sub_arn_code=sip_data.sub_broker_arn  # Fixed: use sub_broker_arn instead of sub_arn_code
         # Add other fields like brokerage, remarks if stored in DB
     )

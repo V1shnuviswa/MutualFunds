@@ -21,6 +21,9 @@ class User(Base):
 
     orders = relationship("Order", foreign_keys="[Order.user_id]", back_populates="user")
     clients_created = relationship("Client", back_populates="creator") # Optional relationship
+    
+    # Add PostgreSQL constraints
+    __table_args__ = ()
 
 class Client(Base):
     __tablename__ = "clients"
@@ -41,6 +44,9 @@ class Client(Base):
     sip_registrations = relationship("SIPRegistration", back_populates="client")
     mandates = relationship("Mandate", back_populates="client")
     registration_state = relationship("ClientRegistrationState", back_populates="client", uselist=False)
+    
+    # Add PostgreSQL constraints
+    __table_args__ = ()
 
 class Scheme(Base):
     __tablename__ = "schemes"
@@ -56,12 +62,15 @@ class Scheme(Base):
 
     orders = relationship("Order", back_populates="scheme")
     sip_registrations = relationship("SIPRegistration", back_populates="scheme")
+    
+    # Add PostgreSQL constraints
+    __table_args__ = ()
 
 class OrderStatusHistory(Base):
     """Model for tracking order status changes."""
     __tablename__ = "order_status_history"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
     status = Column(String, nullable=False)
     remarks = Column(String)
@@ -71,6 +80,9 @@ class OrderStatusHistory(Base):
     # Relationships
     order = relationship("Order", back_populates="status_history")
     user = relationship("User", foreign_keys=[created_by])
+
+    # Add Postgres sequence for id
+    __table_args__ = ()
 
 class Order(Base):
     """Model for orders (both lumpsum and SIP)."""
@@ -105,7 +117,7 @@ class Order(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     ip_address = Column(String(45), nullable=True)
     euin = Column(String(50), nullable=True)
-    euin_declared = Column(CHAR(1), nullable=True)
+    euin_declared = Column(String(1), nullable=True, default='N')
     sub_arn_code = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
@@ -117,6 +129,9 @@ class Order(Base):
     sip_registration = relationship("SIPRegistration", back_populates="order", uselist=False) # One-to-one
     status_history = relationship("OrderStatusHistory", back_populates="order", cascade="all, delete-orphan")
     status_updated_by_user = relationship("User", foreign_keys=[status_updated_by])
+
+    # Add PostgreSQL sequence configuration
+    __table_args__ = ()
 
 class SIPRegistration(Base):
     __tablename__ = "sip_registrations"
@@ -142,6 +157,9 @@ class SIPRegistration(Base):
     scheme = relationship("Scheme", back_populates="sip_registrations")
     mandate = relationship("Mandate", back_populates="sip_registrations")
 
+    # Add PostgreSQL sequence configuration
+    __table_args__ = ()
+
 class Mandate(Base):
     __tablename__ = "mandates"
 
@@ -160,6 +178,9 @@ class Mandate(Base):
 
     client = relationship("Client", back_populates="mandates")
     sip_registrations = relationship("SIPRegistration", back_populates="mandate")
+    
+    # Add PostgreSQL constraints
+    __table_args__ = ()
 
 class ClientRegistrationState(Base):
     """Model for tracking client registration progress through multiple steps."""
@@ -205,4 +226,7 @@ class ClientRegistrationState(Base):
     # Relationships
     creator = relationship("User", foreign_keys=[created_by_user_id])
     client = relationship("Client", back_populates="registration_state", uselist=False)
+
+    # Add PostgreSQL sequence configuration
+    __table_args__ = ()
 

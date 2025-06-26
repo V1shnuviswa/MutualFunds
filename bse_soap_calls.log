@@ -4196,3 +4196,319 @@ src.bse_integration.exceptions.BSEIntegrationError: BSE Error: FAILED: CLIENT NO
   "Filler5": "",
   "Filler6": ""
 }
+2025-06-26 12:18:13,626 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 12:18:13,626 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 12:18:13,967 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 12:18:13,967 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 12:18:14,003 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 12:18:14,107 - bse_integration - INFO - Placing P order for 20250626638518340
+2025-06-26 12:18:14,107 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 12:18:14,260 - bse_integration - ERROR - BSE Error N: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+2025-06-26 12:18:14,260 - bse_integration - WARNING - BSE Business Error: BSE Error: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+Traceback (most recent call last):
+  File "c:\users\vishnu\downloads\order_management_system_github\order_management_system_github\src\bse_integration\order.py", line 574, in _send_soap_request
+    raise BSEIntegrationError(f"BSE Error: {error_msg}")
+src.bse_integration.exceptions.BSEIntegrationError: BSE Error: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+2025-06-26 12:18:14,261 - bse_integration - ERROR - SOAP Request failed with parameters: {
+  "TransCode": "NEW",
+  "TransNo": "20250626638518340",
+  "OrderId": "",
+  "UserID": "6385101",
+  "MemberId": "63851",
+  "ClientCode": "0000000004",
+  "SchemeCd": "EDWRG",
+  "BuySell": "P",
+  "BuySellType": "FRESH",
+  "DPTxn": "P",
+  "OrderVal": "1000.0",
+  "Qty": "",
+  "AllRedeem": "N",
+  "FolioNo": "",
+  "Remarks": "",
+  "KYCStatus": "Y",
+  "RefNo": "0626121813REF63851",
+  "SubBrCode": "",
+  "EUIN": "E543938",
+  "EUINVal": "Y",
+  "MinRedeem": "N",
+  "DPC": "Y",
+  "IPAdd": "",
+  "Password": "vAcs+23BFK3j4BPrvf1j0vbIj6aTc6hGk2D+1pqZ0mEdc6t4aT6HWVTEFhAggpK3",
+  "PassKey": "PassKey123",
+  "Parma1": "",
+  "Param2": "",
+  "Param3": "",
+  "MobileNo": "7010598418",
+  "EmailID": "vishnuviswa1970@gmail.com",
+  "MandateID": "",
+  "Filler1": "",
+  "Filler2": "",
+  "Filler3": "",
+  "Filler4": "",
+  "Filler5": "",
+  "Filler6": ""
+}
+2025-06-26 12:18:31,260 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 12:18:31,261 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 12:18:31,297 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 12:18:31,297 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 12:18:31,331 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 12:18:31,436 - bse_integration - INFO - Placing P order for 20250626638519899
+2025-06-26 12:18:31,436 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 13:12:39,232 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 13:12:39,232 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 13:12:39,274 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 13:12:39,274 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 13:12:39,368 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 13:12:39,478 - bse_integration - INFO - Placing P order for 2025062663851000001
+2025-06-26 13:12:39,478 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 13:36:29,321 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 13:36:29,321 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 13:36:29,693 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 13:36:29,693 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 13:36:29,731 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 13:36:29,998 - bse_integration - INFO - Placing P order for 20250626638518003
+2025-06-26 13:36:29,999 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 13:42:40,704 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 13:42:40,704 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 13:42:40,744 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 13:42:40,744 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 13:42:40,781 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 13:42:40,883 - bse_integration - INFO - Placing P order for 20250626638518546
+2025-06-26 13:42:40,883 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 13:46:28,644 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 13:46:28,644 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 13:46:28,686 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 13:46:28,686 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 13:46:28,725 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 13:46:28,849 - bse_integration - INFO - Placing P order for 20250626638519299
+2025-06-26 13:46:28,849 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 13:56:26,290 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 13:56:26,291 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 13:56:26,330 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 13:56:26,330 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 13:56:26,368 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 13:56:26,494 - bse_integration - INFO - Placing P order for 20250626638519795
+2025-06-26 13:56:26,494 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 15:21:46,864 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:21:46,864 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:21:48,825 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:21:48,825 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:21:48,875 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 15:26:25,044 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:26:25,044 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:26:25,096 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:26:25,097 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:26:25,145 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 15:28:05,577 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:28:05,577 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:28:05,624 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:28:05,624 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:28:05,671 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 15:28:39,140 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:28:39,140 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:28:39,187 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:28:39,187 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:28:39,233 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 15:38:54,080 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:38:54,081 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:38:54,138 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:38:54,138 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:38:54,196 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 15:42:36,609 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:42:36,611 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:42:36,667 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:42:36,667 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:42:36,725 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 15:46:36,268 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:46:36,268 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:46:36,325 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:46:36,325 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:46:36,381 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 15:53:25,270 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 15:53:25,271 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 15:53:25,321 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 15:53:25,321 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 15:53:25,370 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:18:52,721 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 18:18:52,724 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 18:18:53,149 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 18:18:53,151 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 18:18:53,212 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:18:53,475 - bse_integration - INFO - Placing P order for 20250626638517222
+2025-06-26 18:18:53,475 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 18:18:53,593 - bse_integration - ERROR - BSE Error N: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+2025-06-26 18:18:53,594 - bse_integration - WARNING - BSE Business Error: BSE Error: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+Traceback (most recent call last):
+  File "c:\users\vishnu\downloads\order_management_system_github\order_management_system_github\src\bse_integration\order.py", line 574, in _send_soap_request
+    raise BSEIntegrationError(f"BSE Error: {error_msg}")
+src.bse_integration.exceptions.BSEIntegrationError: BSE Error: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+2025-06-26 18:18:53,595 - bse_integration - ERROR - SOAP Request failed with parameters: {
+  "TransCode": "NEW",
+  "TransNo": "20250626638517222",
+  "OrderId": "",
+  "UserID": "6385101",
+  "MemberId": "63851",
+  "ClientCode": "0000100013",
+  "SchemeCd": "EDWRG",
+  "BuySell": "P",
+  "BuySellType": "FRESH",
+  "DPTxn": "P",
+  "OrderVal": "1000.0",
+  "Qty": "",
+  "AllRedeem": "N",
+  "FolioNo": "",
+  "Remarks": "",
+  "KYCStatus": "Y",
+  "RefNo": "0626181852REF63851",
+  "SubBrCode": "",
+  "EUIN": "E543938",
+  "EUINVal": "Y",
+  "MinRedeem": "N",
+  "DPC": "Y",
+  "IPAdd": "",
+  "Password": "vAcs+23BFK3j4BPrvf1j0vbIj6aTc6hGk2D+1pqZ0mGmHM4ylbWwLtkgo0/28sJy",
+  "PassKey": "PassKey123",
+  "Parma1": "",
+  "Param2": "",
+  "Param3": "",
+  "MobileNo": "7010598418",
+  "EmailID": "vishnuviswa1970@gmail.com",
+  "MandateID": "",
+  "Filler1": "",
+  "Filler2": "",
+  "Filler3": "",
+  "Filler4": "",
+  "Filler5": "",
+  "Filler6": ""
+}
+2025-06-26 18:20:15,345 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 18:20:15,346 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 18:20:15,407 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 18:20:15,407 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 18:20:15,465 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:21:25,371 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 18:21:25,371 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 18:21:25,432 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 18:21:25,432 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 18:21:25,492 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:21:25,749 - bse_integration - INFO - Placing P order for 20250626638513725
+2025-06-26 18:21:25,750 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 18:21:25,956 - bse_integration - ERROR - BSE Error N: FAILED: CLIENT DOES NOT EXISTS. ORDER ENTRY FAILED
+2025-06-26 18:21:25,956 - bse_integration - WARNING - BSE Business Error: BSE Error: FAILED: CLIENT DOES NOT EXISTS. ORDER ENTRY FAILED
+Traceback (most recent call last):
+  File "c:\users\vishnu\downloads\order_management_system_github\order_management_system_github\src\bse_integration\order.py", line 574, in _send_soap_request
+    raise BSEIntegrationError(f"BSE Error: {error_msg}")
+src.bse_integration.exceptions.BSEIntegrationError: BSE Error: FAILED: CLIENT DOES NOT EXISTS. ORDER ENTRY FAILED
+2025-06-26 18:21:25,957 - bse_integration - ERROR - SOAP Request failed with parameters: {
+  "TransCode": "NEW",
+  "TransNo": "20250626638513725",
+  "OrderId": "",
+  "UserID": "6385101",
+  "MemberId": "63851",
+  "ClientCode": "00000000011",
+  "SchemeCd": "EDWRG",
+  "BuySell": "P",
+  "BuySellType": "FRESH",
+  "DPTxn": "P",
+  "OrderVal": "1000.0",
+  "Qty": "",
+  "AllRedeem": "N",
+  "FolioNo": "",
+  "Remarks": "",
+  "KYCStatus": "Y",
+  "RefNo": "0626182125REF63851",
+  "SubBrCode": "",
+  "EUIN": "E543938",
+  "EUINVal": "Y",
+  "MinRedeem": "N",
+  "DPC": "Y",
+  "IPAdd": "",
+  "Password": "vAcs+23BFK3j4BPrvf1j0vbIj6aTc6hGk2D+1pqZ0mFxCglvdrlFqD0F7SsLu9ki",
+  "PassKey": "PassKey123",
+  "Parma1": "",
+  "Param2": "",
+  "Param3": "",
+  "MobileNo": "7010598418",
+  "EmailID": "vishnuviswa1970@gmail.com",
+  "MandateID": "",
+  "Filler1": "",
+  "Filler2": "",
+  "Filler3": "",
+  "Filler4": "",
+  "Filler5": "",
+  "Filler6": ""
+}
+2025-06-26 18:21:56,940 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 18:21:56,940 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 18:21:56,997 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 18:21:56,999 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 18:21:57,057 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:21:57,156 - bse_integration - INFO - Placing P order for 20250626638511051
+2025-06-26 18:21:57,157 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 18:26:40,453 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 18:26:40,453 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 18:26:40,511 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 18:26:40,511 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 18:26:40,568 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:26:40,810 - bse_integration - INFO - Placing P order for 20250626638515894
+2025-06-26 18:26:40,811 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 18:26:40,978 - bse_integration - ERROR - BSE Error N: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+2025-06-26 18:26:40,978 - bse_integration - WARNING - BSE Business Error: BSE Error: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+Traceback (most recent call last):
+  File "c:\users\vishnu\downloads\order_management_system_github\order_management_system_github\src\bse_integration\order.py", line 574, in _send_soap_request
+    raise BSEIntegrationError(f"BSE Error: {error_msg}")
+src.bse_integration.exceptions.BSEIntegrationError: BSE Error: FAILED: CLIENT NOMINEE AUTHENTICATION PENDING
+2025-06-26 18:26:40,979 - bse_integration - ERROR - SOAP Request failed with parameters: {
+  "TransCode": "NEW",
+  "TransNo": "20250626638515894",
+  "OrderId": "",
+  "UserID": "6385101",
+  "MemberId": "63851",
+  "ClientCode": "0110000011",
+  "SchemeCd": "EDWRG",
+  "BuySell": "P",
+  "BuySellType": "FRESH",
+  "DPTxn": "P",
+  "OrderVal": "1000.0",
+  "Qty": "",
+  "AllRedeem": "N",
+  "FolioNo": "",
+  "Remarks": "",
+  "KYCStatus": "Y",
+  "RefNo": "0626182640REF63851",
+  "SubBrCode": "",
+  "EUIN": "E543938",
+  "EUINVal": "Y",
+  "MinRedeem": "N",
+  "DPC": "Y",
+  "IPAdd": "",
+  "Password": "vAcs+23BFK3j4BPrvf1j0vbIj6aTc6hGk2D+1pqZ0mFePzi8cotBoQeSvG9OlQ+d",
+  "PassKey": "PassKey123",
+  "Parma1": "",
+  "Param2": "",
+  "Param3": "",
+  "MobileNo": "7010598418",
+  "EmailID": "vishnuviswa1970@gmail.com",
+  "MandateID": "",
+  "Filler1": "",
+  "Filler2": "",
+  "Filler3": "",
+  "Filler4": "",
+  "Filler5": "",
+  "Filler6": ""
+}
+2025-06-26 18:27:03,394 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 18:27:03,395 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 18:27:03,451 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 18:27:03,452 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 18:27:03,509 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:27:03,619 - bse_integration - INFO - Placing P order for 20250626638512038
+2025-06-26 18:27:03,619 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-26 18:33:09,344 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-26 18:33:09,344 - bse_integration - INFO - Initializing SOAP client...
+2025-06-26 18:33:09,402 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-26 18:33:09,402 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-26 18:33:09,462 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-26 18:33:09,567 - bse_integration - INFO - Placing P order for 20250626638511926
+2025-06-26 18:33:09,567 - bse_integration - INFO - Sending SOAP request: orderEntryParam
