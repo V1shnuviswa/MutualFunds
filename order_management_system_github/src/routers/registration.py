@@ -706,48 +706,56 @@ async def bse_register_client(
             # BSE registration successful
             db_client = None
             
-            # Try to save client to database, but don't fail if database issues occur
-            try:
-                # Prepare client data
-                client_name = f"{client_data.PrimaryHolderFirstName}"
-                if client_data.PrimaryHolderLastName:
-                    client_name += f" {client_data.PrimaryHolderLastName}"
-                    
-                # Check if client already exists
-                existing_client = crud.get_client(db, client_data.ClientCode)
-                if existing_client:
-                    logger.info(f"Client {client_data.ClientCode} already exists, updating...")
-                    # Update client
-                    client_update = schemas.ClientCreate(
-                        clientCode=client_data.ClientCode,
-                        clientName=client_name,
-                        pan=client_data.PrimaryHolderPAN if client_data.PrimaryHolderPANExempt == "N" else None,
-                        kycStatus="Y" if client_data.PrimaryHolderKYCType in ["K", "C"] else "N",
-                        accountType=client_data.ClientType,
-                        holdingType=client_data.HoldingNature,
-                        taxStatus=client_data.TaxStatus
-                    )
+            # Prepare client data
+            client_name = f"{client_data.PrimaryHolderFirstName}"
+            if client_data.PrimaryHolderLastName:
+                client_name += f" {client_data.PrimaryHolderLastName}"
+                
+            # Check if client already exists
+            existing_client = crud.get_client(db, client_data.ClientCode)
+            if existing_client:
+                logger.info(f"Client {client_data.ClientCode} already exists, updating...")
+                # Update client
+                client_update = schemas.ClientCreate(
+                    clientCode=client_data.ClientCode,
+                    clientName=client_name,
+                    pan=client_data.PrimaryHolderPAN if client_data.PrimaryHolderPANExempt == "N" else None,
+                    kycStatus="Y" if client_data.PrimaryHolderKYCType in ["K", "C"] else "N",
+                    accountType=client_data.ClientType,
+                    holdingType=client_data.HoldingNature,
+                    taxStatus=client_data.TaxStatus
+                )
+                try:
                     db_client = crud.update_client(db, client_data.ClientCode, client_update)
                     logger.info(f"Client {client_data.ClientCode} updated in database")
-                else:
-                    # Create new client
-                    client_create = schemas.ClientCreate(
-                        clientCode=client_data.ClientCode,
-                        clientName=client_name,
-                        pan=client_data.PrimaryHolderPAN if client_data.PrimaryHolderPANExempt == "N" else None,
-                        kycStatus="Y" if client_data.PrimaryHolderKYCType in ["K", "C"] else "N",
-                        accountType=client_data.ClientType,
-                        holdingType=client_data.HoldingNature,
-                        taxStatus=client_data.TaxStatus
+                except Exception as db_error:
+                    logger.error(f"Failed to update client in database: {db_error}", exc_info=True)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Client registered with BSE but failed to update in database: {str(db_error)}"
                     )
+            else:
+                # Create new client
+                client_create = schemas.ClientCreate(
+                    clientCode=client_data.ClientCode,
+                    clientName=client_name,
+                    pan=client_data.PrimaryHolderPAN if client_data.PrimaryHolderPANExempt == "N" else None,
+                    kycStatus="Y" if client_data.PrimaryHolderKYCType in ["K", "C"] else "N",
+                    accountType=client_data.ClientType,
+                    holdingType=client_data.HoldingNature,
+                    taxStatus=client_data.TaxStatus
+                )
+                try:
                     db_client = crud.create_client(db, client_create, current_user.id)
                     logger.info(f"Client {client_data.ClientCode} created in database")
-            except Exception as db_error:
-                # Log database error but continue with success response
-                logger.error(f"Failed to save client to database: {db_error}", exc_info=True)
-                logger.info(f"Client {client_data.ClientCode} registered with BSE but not saved to database")
+                except Exception as db_error:
+                    logger.error(f"Failed to save client to database: {db_error}", exc_info=True)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Client registered with BSE but failed to save to database: {str(db_error)}"
+                    )
             
-            # Return success response even if database save failed
+            # Return success response
             return BSEClientRegistrationResponse(
                 status="success",
                 message=response.get("Remarks", "Client registered successfully"),
@@ -771,6 +779,9 @@ async def bse_register_client(
             status_code=status.HTTP_400_BAD_REQUEST,  # Changed from 500 to 400 for client-side errors
             detail=str(e)
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         logger.error(f"Unexpected error during client registration: {e}", exc_info=True)
         raise HTTPException(

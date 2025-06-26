@@ -9,7 +9,12 @@ from sqlalchemy.orm import sessionmaker
 from databases import Database
 
 # Use the absolute path to the existing database
-DATABASE_URL = "sqlite+aiosqlite:///C:/Users/Vishnu/Downloads/order_management_system_github/order_management_system_github/order_management.db"
+
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{BASE_DIR / 'order_management.db'}")
+
 
 # SQLAlchemy setup for ORM (synchronous for model definition)
 engine = create_engine(
