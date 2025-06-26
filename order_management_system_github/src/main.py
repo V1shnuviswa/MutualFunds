@@ -15,16 +15,32 @@ from src.database import engine, database, create_tables, connect_db, disconnect
 from src import models, schemas
 from src.routers import (
     auth_router, orders_router, reports_router, price_router,
-    payment_router, monitoring_router, holdings_router, registration_router
+    payment_router, monitoring_router, holdings_router, registration_router,
+    bse_auth
 )
 # Import BSE router from auth module
 from src.bse_integration.auth import bse_router
 from src.bse_integration.config import bse_settings
 from src.bse_integration.order import BSEOrderPlacer
+from src.routers.registration import bse_router as bse_registration_router
 from src.utils import preprocess_payload  # Import the utility function
 
-# Configure logging
+# Configure logging - Set to DEBUG level for development
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('bse_integration.log')
+    ]
+)
 logger = logging.getLogger(__name__)
+# Enable detailed logging for BSE integration
+logging.getLogger('src.bse_integration').setLevel(logging.DEBUG)
+logging.getLogger('src.routers.registration').setLevel(logging.DEBUG)
+logging.getLogger('zeep').setLevel(logging.DEBUG)
+logging.getLogger('requests').setLevel(logging.DEBUG)
+logging.getLogger('urllib3').setLevel(logging.DEBUG)
 
 # Create database tables if they don't exist
 # In a production scenario, you might use Alembic for migrations
@@ -101,6 +117,8 @@ app.include_router(payment_router) # This router already has its prefix
 app.include_router(monitoring_router) # This router already has its prefix
 app.include_router(holdings_router) # This router already has its prefix
 app.include_router(registration_router) # This router already has its prefix
+app.include_router(bse_auth.router)    # Include the new BSE auth router
+app.include_router(bse_registration_router)  # Include the BSE client registration router
 
 
 @app.get("/api/v1/health", tags=["Health Check"])

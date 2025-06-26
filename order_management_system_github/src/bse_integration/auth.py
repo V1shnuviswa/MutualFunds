@@ -203,12 +203,11 @@ class BSEAuthenticator:
         # Log authentication attempt
         logger.info(f"Authenticating with BSE STAR MF: User={self.user_id}, Member={self.member_id}")
         
-        # Prepare authentication parameters
+        # Prepare authentication parameters (BSE getPassword only accepts UserId, Password, PassKey)
         params = {
             "UserId": self.user_id,
             "Password": self.password,
-            "PassKey": passkey,
-            "MemberId": self.member_id
+            "PassKey": passkey
         }
         
         try:

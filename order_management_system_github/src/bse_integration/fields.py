@@ -1,6 +1,6 @@
 # fields.py
 # Core client registration fields required by BSE STAR MF
-CLIENT_REGISTRATION_FIELDS = [
+CLIENT_REGISTRATION_FIELDS_1 = [
     "ClientCode",                   # 1
     "PrimaryHolderFirstName",       # 2
     "PrimaryHolderMiddleName",      # 3
@@ -161,3 +161,188 @@ MINIMUM_REQUIRED_FIELDS = [
     "EmailDeclarationFlag"
 ]
 
+CLIENT_REGISTRATION_FIELDS = {
+    "ClientCode": "",  # Mandatory
+    "PrimaryHolderFirstName": "",  # Mandatory
+    "PrimaryHolderMiddleName": "",  # Optional
+    "PrimaryHolderLastName": "",  # Optional
+    "TaxStatus": "",  # Mandatory
+    "Gender": "",  # Mandatory for Individual, NRI and Minor clients
+    "PrimaryHolderDOB": "",  # Mandatory (DD/MM/YYYY)
+    "OccupationCode": "",  # Mandatory 01/02/03/04/05/06/07/08/09/10
+    "HoldingNature": "",  # Mandatory SI/JO/AS
+    "SecondHolderFirstName": "",  # Conditional Mandatory if Mode of Holding is JO/AS
+    "SecondHolderMiddleName": "",  # Optional
+    "SecondHolderLastName": "",  # Conditional Mandatory if Mode of Holding is JO/AS
+    "ThirdHolderFirstName": "",  # Optional
+    "ThirdHolderMiddleName": "",  # Optional
+    "ThirdHolderLastName": "",  # Optional; Mandatory if First Name mentioned
+    "SecondHolderDOB": "",  # Conditional Mandatory if Holding is JO/AS
+    "ThirdHolderDOB": "",  # Conditional Mandatory if Third holder present
+    "GuardianFirstName": "",  # Conditional Mandatory for Minor investment
+    "GuardianMiddleName": "",  # Conditional Mandatory for Minor investment
+    "GuardianLastName": "",  # Conditional Mandatory for Minor investment
+    "GuardianDOB": "",  # Optional; Mandatory for Minor clients (DD/MM/YYYY)
+    "PrimaryHolderPANExempt": "",  # Mandatory
+    "SecondHolderPANExempt": "",  # Mandatory if Joint holding and name provided
+    "ThirdHolderPANExempt": "",  # Mandatory if Third Holder name provided
+    "GuardianPANExempt": "",  # Conditional Mandatory for Minor clients
+    "PrimaryHolderPAN": "",  # Conditional Mandatory if PAN Exempt = N
+    "SecondHolderPAN": "",  # Conditional Mandatory if PAN Exempt = N and name provided
+    "ThirdHolderPAN": "",  # Conditional Mandatory if PAN Exempt = N and name provided
+    "GuardianPAN": "",  # Conditional Mandatory if Guardian name is provided
+    "PrimaryExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "SecondExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "ThirdExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "GuardianExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "ClientType": "",  # Mandatory (D/P)
+    "PMS": "",  # Optional (Y/N)
+    "DefaultDP": "",  # Conditional Mandatory if ClientType = D CDSL/NSDL
+    "CDSLDPID": "",  # Conditional Mandatory if Default DP = CDSL
+    "CDSLCLTID": "",  # Conditional Mandatory if Default DP = CDSL
+    "CMBPID": "",  # Conditional Mandatory if PMS = Y and DP = NSDL
+    "NSDLDPID": "",  # Conditional Mandatory if Default DP = NSDL
+    "NSDLCLTID": "",  # Conditional Mandatory if Default DP = NSDL
+    "AccountType1": "",  # Mandatory (SB/CB/NE/NO)
+    "AccountNo1": "",  # Mandatory
+    "MICRNo1": "",  # Optional
+    "IFSCCode1": "",  # Mandatory
+    "DefaultBankFlag1": "",  # Mandatory (Y/N)
+    "AccountType2": "",  # Optional
+    "AccountNo2": "",  # Conditional Mandatory if present
+    "MICRNo2": "",  # Optional
+    "IFSCCode2": "",  # Conditional Mandatory if present
+    "DefaultBankFlag2": "",  # Conditional Mandatory if present
+    "AccountType3": "",  # Optional
+    "AccountNo3": "",  # Conditional Mandatory if present
+    "MICRNo3": "",  # Optional
+    "IFSCCode3": "",  # Conditional Mandatory if present
+    "DefaultBankFlag3": "",  # Conditional Mandatory if present
+    "AccountType4": "",  # Optional
+    "AccountNo4": "",  # Conditional Mandatory if present
+    "MICRNo4": "",  # Optional
+    "IFSCCode4": "",  # Conditional Mandatory if present
+    "DefaultBankFlag4": "",  # Conditional Mandatory if present
+    "AccountType5": "",  # Optional
+    "AccountNo5": "",  # Conditional Mandatory if present
+    "MICRNo5": "",  # Optional
+    "IFSCCode5": "",  # Conditional Mandatory if present
+    "DefaultBankFlag5": "",  # Conditional Mandatory if present
+    "ChequeName": "",  # Optional
+    "DividendPayMode": "",  # Mandatory (01 = Reinvest, 02 = Payout, 03 = Switch, 04 = Direct Credit, 05 = NEFT/RTGS, 06 = ECS, 07 = NACH, 08 = Auto Sweep, 09 = Systematic Transfer Plan)
+    "Address1": "",  # Mandatory
+    "Address2": "",  # Optional
+    "Address3": "",  # Optional
+    "City": "",  # Mandatory
+    "State": "",  # Mandatory
+    "Pincode": "",  # Mandatory
+    "Country": "",  # Mandatory
+    "ResPhone": "",  # Optional
+    "ResFax": "",  # Optional
+    "OffPhone": "",  # Optional
+    "OffFax": "",  # Optional
+    "Email": "",  # Mandatory
+    "CommunicationMode": "",  # Mandatory P-Physical, E-Email, M-Mobile
+    "ForeignAddress1": "",  # Conditional Mandatory for NRI
+    "ForeignAddress2": "",  # Optional
+    "ForeignAddress3": "",  # Optional
+    "ForeignCity": "",  # Conditional Mandatory for NRI
+    "ForeignPincode": "",  # Conditional Mandatory for NRI
+    "ForeignState": "",  # Conditional Mandatory for NRI
+    "ForeignCountry": "",  # Conditional Mandatory for NRI
+    "ForeignResPhone": "",  # Optional
+    "ForeignResFax": "",  # Optional
+    "ForeignOffPhone": "",  # Optional
+    "ForeignOffFax": "",  # Optional
+    "IndianMobile": "",  # Mandatory
+    "PrimaryHolderKYCType": "",  # Mandatory (K/C/B/E)
+    "PrimaryHolderCKYC": "",  # Conditional Mandatory if KYC Type = C
+    "SecondHolderKYCType": "",  # Optional
+    "SecondHolderCKYC": "",  # Conditional Mandatory if KYC Type = C
+    "ThirdHolderKYCType": "",  # Optional
+    "ThirdHolderCKYC": "",  # Conditional Mandatory if KYC Type = C
+    "GuardianKYCType": "",  # Optional
+    "GuardianCKYC": "",  # Conditional Mandatory if KYC Type = C and Minor
+    "PrimaryHolderKRAExemptRefNo": "",  # Conditional Mandatory if Primary Holder PAN Exempt
+    "SecondHolderKRAExemptRefNo": "",  # Conditional Mandatory if Second Holder PAN Exempt
+    "ThirdHolderKRAExemptRefNo": "",  # Conditional Mandatory if Third Holder PAN Exempt
+    "GuardianExemptRefNo": "",  # Conditional Mandatory if Guardian PAN Exempt
+    "AadhaarUpdated": "",  # Optional (Y/N)
+    "MapinId": "",  # Optional
+    "PaperlessFlag": "",  # Mandatory; P = Paper, Z = Paperless
+    "LEINo": "",  # Optional
+    "LEIValidity": "",  # Conditional Mandatory (DD/MM/YYYY)
+    "MobileDeclarationFlag": "",  # Conditional Mandatory if Mobile No. provided
+    "EmailDeclarationFlag": "",  # Conditional Mandatory if Email Id provided
+    "SecondHolderEmail": "",  # Mandatory if Mode of Holding is JO/AS
+    "SecondHolderEmailDeclaration": "",  # Conditional Mandatory if Email provided
+    "SecondHolderMobile": "",  # Mandatory if Mode of Holding is JO/AS
+    "SecondHolderMobileDeclaration": "",  # Conditional Mandatory if Mobile No. provided
+    "ThirdHolderEmail": "",  # Mandatory if Third Holder is present
+    "ThirdHolderEmailDeclaration": "",  # Conditional Mandatory if Email provided
+    "ThirdHolderMobile": "",  # Mandatory if Third Holder is present
+    "ThirdHolderMobileDeclaration": "",  # Conditional Mandatory if Mobile No. provided
+    "GuardianRelationship": "",  # Conditional Mandatory; 23 - FATHER, 24 - MOTHER, etc.
+    "NominationOpt": "",  # Optional for Demat; Mandatory for Non-Demat SI Holding
+    "NominationAuthMode": "",  # Optional; W = Wet, E = eSign, O = OTP
+    "Nominee1Name": "",  # Conditional Mandatory if NominationOpt = Y
+    "Nominee1Relationship": "",  # Conditional Mandatory if Nominee present
+    "Nominee1ApplicablePercent": "",  # Conditional Mandatory if Nominee present
+    "Nominee1MinorFlag": "",  # Conditional Mandatory if Nominee present
+    "Nominee1DOB": "",  # Conditional Mandatory if MinorFlag = Y
+    "Nominee1Guardian": "",  # Optional
+    "Nominee1GuardianPAN": "",  # Optional
+    "Nominee1IdentityType": "",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1IDNumber": "",  # Conditional Mandatory if ID Type provided
+    "Nominee1Email": "",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Mobile": "",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Address1": "",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Address2": "",  # Optional
+    "Nominee1Address3": "",  # Optional
+    "Nominee1City": "",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Pincode": "",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Country": "",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee2Name": "",  # Conditional Mandatory if Nominee1 < 100%
+    "Nominee2Relationship": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2ApplicablePercent": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2MinorFlag": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2DOB": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2Guardian": "",  # Optional
+    "Nominee2GuardianPAN": "",  # Optional
+    "Nominee2IdentityType": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2IDNumber": "",  # Conditional Mandatory based on ID Type
+    "Nominee2Email": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Mobile": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Address1": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Address2": "",  # Optional
+    "Nominee2Address3": "",  # Optional
+    "Nominee2City": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Pincode": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Country": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee3Name": "",  # Conditional Mandatory if % < 100%
+    "Nominee3Relationship": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3ApplicablePercent": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3MinorFlag": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3DOB": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3Guardian": "",  # Optional
+    "Nominee3GuardianPAN": "",  # Optional
+    "Nominee3IdentityType": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3IDNumber": "",  # Conditional Mandatory based on ID Type
+    "Nominee3Email": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Mobile": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Address1": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Address2": "",  # Optional
+    "Nominee3Address3": "",  # Optional
+    "Nominee3City": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Pincode": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Country": "",  # Conditional Mandatory if Nominee3 Opted
+    "NomineeSOAFlag": "",  # Mandatory if NomineeOpt = Y; Y/N display in SOA
+    "Filler1": "",  # Optional
+    "Filler2": "",  # Optional
+    "Filler3": "",  # Optional
+    "Filler4": "",  # Optional
+    "Filler5": "",  # Optional
+    "Filler6": "",  # Optional
+    "Filler7": "",  # Optional
+    "Filler8": "",  # Optional
+}

@@ -1,13 +1,14 @@
 # /home/ubuntu/order_management_system/src/crud.py
 
-from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, update, delete
-from . import models, schemas, security
-from datetime import date, datetime, timedelta
+from typing import List, Optional, Dict, Any, Union
+from datetime import datetime, date, timedelta
 from decimal import Decimal
-from typing import List, Optional
 import json
 import secrets
+from sqlalchemy import select, update, func, and_, or_, desc
+from sqlalchemy.orm import Session, selectinload
+from . import models, schemas, security
+from .database import execute_with_retry
 
 # --- User CRUD --- #
 
@@ -36,20 +37,26 @@ def get_client(db: Session, client_code: str):
     return db.get(models.Client, client_code)
 
 def create_client(db: Session, client: schemas.ClientCreate, user_id: int):
-    db_client = models.Client(**client.model_dump(), created_by_user_id=user_id)
-    db.add(db_client)
-    db.commit()
-    db.refresh(db_client)
-    return db_client
+    def _create_client(session):
+        db_client = models.Client(**client.model_dump(), created_by_user_id=user_id)
+        session.add(db_client)
+        session.commit()
+        session.refresh(db_client)
+        return db_client
+    
+    return execute_with_retry(db, _create_client)
 
 def update_client(db: Session, client_code: str, client_data: schemas.ClientCreate):
-    db_client = get_client(db, client_code=client_code)
-    if db_client:
-        for key, value in client_data.model_dump(exclude_unset=True).items():
-            setattr(db_client, key, value)
-    db.commit()
-    db.refresh(db_client)
-    return db_client
+    def _update_client(session):
+        db_client = get_client(session, client_code=client_code)
+        if db_client:
+            for key, value in client_data.model_dump(exclude_unset=True).items():
+                setattr(db_client, key, value)
+        session.commit()
+        session.refresh(db_client)
+        return db_client
+    
+    return execute_with_retry(db, _update_client)
 
 # --- Scheme CRUD --- #
 
@@ -65,25 +72,25 @@ def create_scheme(db: Session, scheme: schemas.SchemeCreate):
 
 # --- Order CRUD --- #
 
-def create_lumpsum_order(db: Session, order_data: schemas.LumpsumOrderRequest, user_id: int):
-
+def create_lumpsum_order(db: Session, order_data: dict, user_id: int):
+    # Map BSE field names to database field names
     db_order = models.Order(
-        unique_ref_no=order_data.unique_ref_no,
-        client_code=order_data.client_code,
-        scheme_code=order_data.scheme_code,
+        unique_ref_no=order_data.get("RefNo"),
+        client_code=order_data.get("ClientCode"),
+        scheme_code=order_data.get("SchemeCd"),
         order_type="LUMPSUM",
-        transaction_type=order_data.transaction_type,
-        amount=order_data.amount,
-        quantity=order_data.quantity,
-        folio_no=order_data.folio_no,
+        transaction_type="PURCHASE" if order_data.get("BuySell") == "P" else "REDEMPTION",
+        amount=order_data.get("Amount"),
+        quantity=order_data.get("Qty"),
+        folio_no=order_data.get("FolioNo"),
         status="RECEIVED",
         user_id=user_id,
-        ip_address=order_data.ip_address,
-        euin=order_data.euin,
-        euin_declared=order_data.euin_declared,
-        sub_arn_code=order_data.sub_arn_code,
-        dp_txn_mode=order_data.DPTxn,
-        status_message=order_data.remarks
+        ip_address=order_data.get("IPAdd"),
+        euin=order_data.get("EUIN"),
+        euin_declared=order_data.get("EUINFlag") == "Y",
+        sub_arn_code=order_data.get("SubBrokerARN"),
+        dp_txn_mode=order_data.get("DPTxn"),
+        status_message=order_data.get("Remarks")
     )
     db.add(db_order)
     db.commit()
@@ -98,14 +105,14 @@ def create_sip_registration_order(db: Session, sip_data: schemas.SIPOrderCreate,
         scheme_code=sip_data.scheme_code,
         order_type="SIP_REG",
         transaction_type="PURCHASE", # SIP is typically purchase
-        amount=sip_data.amount,
+        amount=sip_data.installment_amount,  # Fixed: use installment_amount instead of amount
         folio_no=sip_data.folio_no,
         status="RECEIVED", # Initial status for registration order
         user_id=user_id,
         ip_address=sip_data.ip_address,
         euin=sip_data.euin,
-        euin_declared=sip_data.euin_declared,
-        sub_arn_code=sip_data.sub_arn_code
+        euin_declared=sip_data.euin_declaration,  # Fixed: use euin_declaration instead of euin_declared
+        sub_arn_code=sip_data.sub_broker_arn  # Fixed: use sub_broker_arn instead of sub_arn_code
         # Add other fields like brokerage, remarks if stored in DB
     )
     db.add(db_order)
@@ -117,13 +124,13 @@ def create_sip_registration_order(db: Session, sip_data: schemas.SIPOrderCreate,
         order_id=db_order.id,
         client_code=sip_data.client_code,
         scheme_code=sip_data.scheme_code,
-        frequency=sip_data.frequency,
-        amount=sip_data.amount,
-        installments=sip_data.installments,
-        start_date=sip_data.startDate,
-        end_date=sip_data.endDate,
-        mandate_id=sip_data.mandateId,
-        first_order_today=sip_data.firstOrderToday,
+        frequency=sip_data.frequency_type.value,  # Fixed: use frequency_type.value
+        amount=sip_data.installment_amount,  # Fixed: use installment_amount instead of amount
+        installments=sip_data.no_of_installments,  # Fixed: use no_of_installments instead of installments
+        start_date=sip_data.start_date,  # Fixed: use start_date instead of startDate
+        end_date=None,  # Calculate end date based on start_date and installments if needed
+        mandate_id=sip_data.mandate_id,  # Fixed: use mandate_id instead of mandateId
+        first_order_today="Y" if sip_data.first_order_today else "N",  # Fixed: convert boolean to Y/N
         status="REGISTERED" # Initial SIP status
     )
     db.add(db_sip)
@@ -463,4 +470,72 @@ def get_registration_progress(db: Session, client_code: str) -> dict:
         "steps_completed": steps_completed,
         "next_step_url": next_step_url
     }
+
+def get_filtered_orders(
+    db: Session,
+    client_code: Optional[str] = None,
+    from_date: Optional[date] = None,
+    to_date: Optional[date] = None,
+    order_type: Optional[str] = None,
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100
+) -> List[models.Order]:
+    """
+    Get filtered orders based on various criteria.
+    """
+    stmt = select(models.Order)
+    
+    # Apply filters
+    if client_code:
+        stmt = stmt.where(models.Order.client_code == client_code)
+    
+    if from_date:
+        stmt = stmt.where(models.Order.order_timestamp >= from_date)
+    
+    if to_date:
+        # Add one day to include the entire to_date
+        to_date_end = datetime.combine(to_date, datetime.max.time())
+        stmt = stmt.where(models.Order.order_timestamp <= to_date_end)
+    
+    if order_type:
+        stmt = stmt.where(models.Order.order_type == order_type)
+    
+    if status:
+        stmt = stmt.where(models.Order.status == status)
+    
+    # Add joins to fetch related data
+    stmt = stmt.options(
+        selectinload(models.Order.client),
+        selectinload(models.Order.scheme)
+    )
+    
+    # Order by timestamp descending (most recent first)
+    stmt = stmt.order_by(models.Order.order_timestamp.desc())
+    
+    # Apply pagination
+    stmt = stmt.offset(skip).limit(limit)
+    
+    orders = db.execute(stmt).scalars().all()
+    return orders
+
+def get_orders_by_client(
+    db: Session,
+    client_code: str,
+    from_date: Optional[date] = None,
+    to_date: Optional[date] = None,
+    skip: int = 0,
+    limit: int = 100
+) -> List[models.Order]:
+    """
+    Get all orders for a specific client.
+    """
+    return get_filtered_orders(
+        db=db,
+        client_code=client_code,
+        from_date=from_date,
+        to_date=to_date,
+        skip=skip,
+        limit=limit
+    )
 

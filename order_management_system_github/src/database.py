@@ -1,6 +1,8 @@
 # /home/ubuntu/order_management_system/src/database.py
 
 import os
+import time
+import sqlite3
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -13,7 +15,12 @@ DATABASE_URL = "sqlite+aiosqlite:///C:/Users/Vishnu/Downloads/order_management_s
 engine = create_engine(
     DATABASE_URL.replace("+aiosqlite", ""), connect_args={"check_same_thread": False}
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    expire_on_commit=False  # Prevents session from being expired
+)
 Base = declarative_base()
 metadata = MetaData()
 
@@ -28,6 +35,33 @@ def get_db():
     finally:
         print("DEBUG: Closing database session.")
         db.close()
+
+# Helper function to execute database operations with retry logic for SQLite locks
+def execute_with_retry(db_session, operation_func, max_retries=3, retry_delay=1):
+    """
+    Execute a database operation with retry logic for SQLite locks
+    
+    Args:
+        db_session: SQLAlchemy session
+        operation_func: Function that performs the database operation
+        max_retries: Maximum number of retries
+        retry_delay: Delay between retries in seconds
+        
+    Returns:
+        Result of the operation function
+    """
+    for attempt in range(max_retries):
+        try:
+            result = operation_func(db_session)
+            return result
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e) and attempt < max_retries - 1:
+                print(f"Database locked, retrying in {retry_delay} seconds (attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+            else:
+                raise
+        except Exception as e:
+            raise
 
 async def connect_db():
     await database.connect()

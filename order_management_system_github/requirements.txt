@@ -5,7 +5,8 @@ sqlalchemy-utils>=0.41.0  # For database utilities
 pydantic>=2.0.0
 email-validator>=2.0.0  # For EmailStr validation
 python-jose[cryptography]>=3.3.0,<3.4.0
-passlib[bcrypt]>=1.7.4,<1.8.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=3.2.0,<4.0.0
 databases[sqlite]
 python-multipart>=0.0.5
 zeep>=4.1.0,<4.2.0  # For BSE SOAP API

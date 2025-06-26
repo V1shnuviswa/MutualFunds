@@ -36,8 +36,16 @@ class BSESettings(BaseSettings):
         default="https://bsestarmfdemo.bseindia.com/StarMFCommonAPI",
         description="Base URL for BSE STAR MF Common API"
     )
+    BSE_UCC_BASE_URL: str = Field(
+        default="https://bsestarmfdemo.bseindia.com/BSEMFWEBAPI",
+        description="Base URL for UCC Registration"
+    )
+    BSE_UCC_REGISTER_URL: str = Field(
+        default="https://bsestarmfdemo.bseindia.com/BSEMFWEBAPI/UCCAPI/UCCRegistrationV183",
+        description="Full URL for UCC Registration API"
+    )
     CLIENT_REGISTRATION: str = Field(
-        default="/ClientMaster/Registration",
+        default="/UCCAPI/UCCRegistrationV183",
         description="Client registration endpoint path"
     )
 

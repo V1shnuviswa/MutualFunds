@@ -1,221 +1,323 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-BSE STAR MF Client Registration Test Script
-
-This script tests client registration with BSE STAR MF.
-It first authenticates and then attempts to register a test client.
-
-Usage:
-    python test_bse_client_registration.py
+Test script for BSE client registration using the API.
+This script demonstrates how to register a client with BSE STAR MF.
 """
 
-import asyncio
-import logging
-import sys
+import requests
 import json
-from datetime import datetime, date
-from typing import Dict, Any, Optional
+from datetime import datetime
 
-# Import BSE integration modules
-from order_management_system_github.src.bse_integration.auth import BSEAuthenticator
-from order_management_system_github.src.bse_integration.config import bse_settings
-from order_management_system_github.src.bse_integration.client_registration import BSEClientRegistrar
+# API configuration
+BASE_URL = "http://localhost:8000"
+AUTH_URL = f"{BASE_URL}/auth/login"
+REGISTER_URL = f"{BASE_URL}/api/v1/bse/clients/register"
+GENERATE_CODE_URL = f"{BASE_URL}/api/v1/bse/clients/generate-code"
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Authentication credentials
+USERNAME = "6385101"
+PASSWORD = "Abc@1234"
 
-# Test data
-TEST_PASSKEY = "PassKey123"  # Default passkey
-TEST_CLIENT_CODE = f"TEST{datetime.now().strftime('%y%m%d%H%M')}"  # Unique client code
-TEST_PAN = "ABCDE1234F"
-TEST_EMAIL = "test@example.com"
-TEST_MOBILE = "9999999999"
-
-async def test_authentication() -> Optional[str]:
-    """Test BSE authentication and return encrypted password if successful"""
-    logger.info("=== Testing BSE Authentication ===")
+def get_access_token():
+    """Get access token from API"""
+    print("Getting access token...")
+    response = requests.post(
+        AUTH_URL,
+        data={"username": USERNAME, "password": PASSWORD},
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
     
-    try:
-        auth = BSEAuthenticator()
-        logger.info(f"Authenticating with BSE using User ID: {auth.user_id}")
-        
-        # Get encrypted password
-        auth_response = await auth.authenticate(TEST_PASSKEY)
-        
-        if auth_response.success:
-            logger.info(f"Authentication successful!")
-            logger.info(f"Status Code: {auth_response.status_code}")
-            logger.info(f"Encrypted Password: {auth_response.encrypted_password[:20]}...")
-            return auth_response.encrypted_password
-        else:
-            logger.error(f"Authentication failed: {auth_response.message}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"Authentication test failed: {str(e)}", exc_info=True)
+    if response.status_code == 200:
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        print(f"Access token: {access_token[:10]}...")
+        return access_token
+    else:
+        print(f"Authentication failed: {response.status_code}")
+        print(response.text)
         return None
 
-async def test_client_registration(encrypted_password: str) -> bool:
-    """Test BSE client registration"""
-    if not encrypted_password:
-        logger.error("Cannot test client registration without encrypted password")
-        return False
-        
-    logger.info("=== Testing BSE Client Registration ===")
+def generate_client_code(access_token, client_data):
+    """Generate client code using API"""
+    print("Generating client code...")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
     
-    try:
-        # Create client registration handler
-        client_reg = BSEClientRegistrar()
-        
-        # Create a client registration request
-        client_data = {
-            "ClientCode": TEST_CLIENT_CODE,
-            "ClientHolding": "SI",  # Single
-            "ClientTaxStatus": "01",  # Individual
-            "ClientOccupationCode": "01",  # Business
-            "ClientAppName1": "Test Client",
-            "ClientAppName2": "",
-            "ClientAppName3": "",
-            "ClientDOB": date.today().replace(year=date.today().year - 30).strftime("%d/%m/%Y"),  # 30 years ago
-            "ClientGender": "M",
-            "ClientGuardian": "",
-            "ClientPAN": TEST_PAN,
-            "ClientNominee": "Test Nominee",
-            "ClientNomineeRelation": "01",  # Spouse
-            "ClientGuardianPAN": "",
-            "ClientType": "P",  # Physical
-            "ClientDefaultDP": "N",
-            "ClientCDSLDPID": "",
-            "ClientCDSLCLTID": "",
-            "ClientNSDLDPID": "",
-            "ClientNSDLCLTID": "",
-            "ClientAccType1": "SB",  # Savings Bank
-            "ClientAccNo1": "12345678901",
-            "ClientMICRNo1": "400002000",
-            "ClientIFSCCode1": "SBIN0001234",
-            "ClientBankName1": "State Bank of India",
-            "ClientBankBranch1": "Main Branch",
-            "ClientBankAddress1": "Main Street",
-            "ClientBankCity1": "Mumbai",
-            "ClientBankState1": "Maharashtra",
-            "ClientBankPincode1": "400001",
-            "ClientAccType2": "",
-            "ClientAccNo2": "",
-            "ClientMICRNo2": "",
-            "ClientIFSCCode2": "",
-            "ClientBankName2": "",
-            "ClientBankBranch2": "",
-            "ClientBankAddress2": "",
-            "ClientBankCity2": "",
-            "ClientBankState2": "",
-            "ClientBankPincode2": "",
-            "ClientAccType3": "",
-            "ClientAccNo3": "",
-            "ClientMICRNo3": "",
-            "ClientIFSCCode3": "",
-            "ClientBankName3": "",
-            "ClientBankBranch3": "",
-            "ClientBankAddress3": "",
-            "ClientBankCity3": "",
-            "ClientBankState3": "",
-            "ClientBankPincode3": "",
-            "ClientAccType4": "",
-            "ClientAccNo4": "",
-            "ClientMICRNo4": "",
-            "ClientIFSCCode4": "",
-            "ClientBankName4": "",
-            "ClientBankBranch4": "",
-            "ClientBankAddress4": "",
-            "ClientBankCity4": "",
-            "ClientBankState4": "",
-            "ClientBankPincode4": "",
-            "ClientAccType5": "",
-            "ClientAccNo5": "",
-            "ClientMICRNo5": "",
-            "ClientIFSCCode5": "",
-            "ClientBankName5": "",
-            "ClientBankBranch5": "",
-            "ClientBankAddress5": "",
-            "ClientBankCity5": "",
-            "ClientBankState5": "",
-            "ClientBankPincode5": "",
-            "ClientChequeName5": "",
-            "ClientAdd1": "123 Test Street",
-            "ClientAdd2": "Test Area",
-            "ClientAdd3": "",
-            "ClientCity": "Mumbai",
-            "ClientState": "Maharashtra",
-            "ClientPincode": "400001",
-            "ClientCountry": "India",
-            "ClientResiPhone": "",
-            "ClientResiFax": "",
-            "ClientOfficePhone": "",
-            "ClientOfficeFax": "",
-            "ClientEmail": TEST_EMAIL,
-            "ClientCommMode": "E",  # Email
-            "ClientDivPayMode": "02",  # Direct Credit
-            "ClientPan2": "",
-            "ClientPan3": "",
-            "ClientMobile": TEST_MOBILE,
-            "MemberCode": bse_settings.BSE_MEMBER_CODE,
-            "UserId": bse_settings.BSE_USER_ID,
-            "Password": encrypted_password,
-            "PassKey": TEST_PASSKEY,
-        }
-        
-        logger.info(f"Registering test client: {TEST_CLIENT_CODE}")
-        logger.info(f"Client details: PAN={TEST_PAN}, Email={TEST_EMAIL}, Mobile={TEST_MOBILE}")
-        
-        # For testing purposes, we'll just log the request and not actually submit
-        # In a real test, you would uncomment the next line
-        # response = await client_reg.register_client(client_data)
-        
-        # Mock response for testing
-        response = {
-            "success": True,
-            "client_code": TEST_CLIENT_CODE,
-            "message": "Client registered successfully",
-            "status_code": "100",
-            "details": {
-                "client_id": f"BSE{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                "registration_date": datetime.now().strftime("%d/%m/%Y")
-            }
-        }
-        
-        logger.info(f"Registration response: {json.dumps(response, indent=2)}")
-        
-        return response.get("success", False)
-        
-    except Exception as e:
-        logger.error(f"Client registration test failed: {str(e)}", exc_info=True)
-        return False
-
-async def main():
-    """Main test function"""
-    logger.info("Starting BSE STAR MF Client Registration Test")
-    logger.info(f"Using BSE User ID: {bse_settings.BSE_USER_ID}")
-    logger.info(f"Using BSE Member Code: {bse_settings.BSE_MEMBER_CODE}")
-    logger.info(f"Using Mock BSE: {'Yes' if bse_settings.USE_MOCK_BSE else 'No'}")
+    response = requests.post(
+        GENERATE_CODE_URL,
+        headers=headers,
+        json=client_data
+    )
     
-    # Test authentication
-    encrypted_password = await test_authentication()
-    
-    if encrypted_password:
-        # Test client registration
-        registration_success = await test_client_registration(encrypted_password)
-        
-        if registration_success:
-            logger.info("Client registration test PASSED!")
-        else:
-            logger.error("Client registration test FAILED!")
+    if response.status_code == 200:
+        result = response.json()
+        print(f"Generated client code: {result.get('client_code')}")
+        return result.get("client_code")
     else:
-        logger.error("Authentication test FAILED! Cannot proceed with registration test.")
+        print(f"Client code generation failed: {response.status_code}")
+        print(response.text)
+        return None
+
+def register_client(access_token, client_data):
+    """Register client using API"""
+    print("Registering client...")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
     
-    logger.info("BSE STAR MF Client Registration Test completed")
+    print("\nSending client data:")
+    print(json.dumps(client_data, indent=2))
+    
+    response = requests.post(
+        REGISTER_URL,
+        headers=headers,
+        json=client_data
+    )
+    
+    print(f"\nResponse status code: {response.status_code}")
+    print(f"Response headers: {dict(response.headers)}")
+    print(f"Raw response body: {response.text}")
+    
+    if response.status_code == 200:
+        result = response.json()
+        print(f"Client registration successful: {result.get('message')}")
+        return result
+    else:
+        print(f"Client registration failed: {response.status_code}")
+        try:
+            error_details = response.json()
+            print(f"Error details: {json.dumps(error_details, indent=2)}")
+        except:
+            print(f"Raw error response: {response.text}")
+        return None
+
+def main():
+    """Main function"""
+    # Get access token
+    access_token = get_access_token()
+    if not access_token:
+        print("Failed to get access token. Exiting.")
+        return
+    
+    # Client data for code generation
+    client_name_data = {
+        "PrimaryHolderFirstName": "John",
+        "PrimaryHolderLastName": "Doe",
+        "PrimaryHolderDOB": "01/01/1990"
+    }
+    
+    # Generate client code
+    client_code = generate_client_code(access_token, client_name_data)
+    if not client_code:
+        # Use a default code if generation fails
+        client_code = "0000000004"  # Exactly 10 characters
+    
+    # Create client registration data
+    client_data = {
+    "ClientCode": "0000000011",  # Mandatory
+    "PrimaryHolderFirstName": "Vishnu",  # Mandatory
+    "PrimaryHolderMiddleName": "",  # Optional
+    "PrimaryHolderLastName": "Viswakumar",  # Optional
+    "TaxStatus": "01",  # Mandatory
+    "Gender": "M",  # Mandatory for Individual, NRI and Minor clients
+    "PrimaryHolderDOB": "06/09/2004",  # Mandatory (DD/MM/YYYY)
+    "OccupationCode": "07",  # Mandatory 01/02/03/04/05/06/07/08/09/10
+    "HoldingNature": "SI",  # Mandatory SI/JO/AS
+    "SecondHolderFirstName": "",  # Conditional Mandatory if Mode of Holding is JO/AS
+    "SecondHolderMiddleName": "",  # Optional
+    "SecondHolderLastName": "",  # Conditional Mandatory if Mode of Holding is JO/AS
+    "ThirdHolderFirstName": "",  # Optional
+    "ThirdHolderMiddleName": "",  # Optional
+    "ThirdHolderLastName": "",  # Optional; Mandatory if First Name mentioned
+    "SecondHolderDOB": "",  # Conditional Mandatory if Holding is JO/AS
+    "ThirdHolderDOB": "",  # Conditional Mandatory if Third holder present
+    "GuardianFirstName": "",  # Conditional Mandatory for Minor investment
+    "GuardianMiddleName": "",  # Conditional Mandatory for Minor investment
+    "GuardianLastName": "",  # Conditional Mandatory for Minor investment
+    "GuardianDOB": "",  # Optional; Mandatory for Minor clients (DD/MM/YYYY)
+    "PrimaryHolderPANExempt": "N",  # Mandatory
+    "SecondHolderPANExempt": "",  # Mandatory if Joint holding and name provided
+    "ThirdHolderPANExempt": "",  # Mandatory if Third Holder name provided
+    "GuardianPANExempt": "",  # Conditional Mandatory for Minor clients
+    "PrimaryHolderPAN": "CKTPV4977J",  # Conditional Mandatory if PAN Exempt = N
+    "SecondHolderPAN": "",  # Conditional Mandatory if PAN Exempt = N and name provided
+    "ThirdHolderPAN": "",  # Conditional Mandatory if PAN Exempt = N and name provided
+    "GuardianPAN": "",  # Conditional Mandatory if Guardian name is provided
+    "PrimaryExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "SecondExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "ThirdExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "GuardianExemptCategory": "",  # Conditional Mandatory if PAN Exempt = Y
+    "ClientType": "P",  # Mandatory (D/P)
+    "PMS": "",  # Optional (Y/N)
+    "DefaultDP": "",  # Conditional Mandatory if ClientType = D CDSL/NSDL 
+    "CDSLDPID": "",  # Conditional Mandatory if Default DP = CDSL
+    "CDSLCLTID": "",  # Conditional Mandatory if Default DP = CDSL
+    "CMBPID": "",  # Conditional Mandatory if PMS = Y and DP = NSDL
+    "NSDLDPID": "",  # Conditional Mandatory if Default DP = NSDL
+    "NSDLCLTID": "",  # Conditional Mandatory if Default DP = NSDL
+    "AccountType1": "SB",  # Mandatory (SB/CB/NE/NO)
+    "AccountNo1": "159012010000322",  # Mandatory
+    "MICRNo1": "",  # Optional
+    "IFSCCode1": "UBIN0815900",  # Mandatory
+    "DefaultBankFlag1": "Y",  # Mandatory (Y/N)
+    "AccountType2": "",  # Optional
+    "AccountNo2": "",  # Conditional Mandatory if present
+    "MICRNo2": "",  # Optional
+    "IFSCCode2": "",  # Conditional Mandatory if present
+    "DefaultBankFlag2": "",  # Conditional Mandatory if present
+    "AccountType3": "",  # Optional
+    "AccountNo3": "",  # Conditional Mandatory if present
+    "MICRNo3": "",  # Optional
+    "IFSCCode3": "",  # Conditional Mandatory if present
+    "DefaultBankFlag3": "",  # Conditional Mandatory if present
+    "AccountType4": "",  # Optional
+    "AccountNo4": "",  # Conditional Mandatory if present
+    "MICRNo4": "",  # Optional
+    "IFSCCode4": "",  # Conditional Mandatory if present
+    "DefaultBankFlag4": "",  # Conditional Mandatory if present
+    "AccountType5": "",  # Optional
+    "AccountNo5": "",  # Conditional Mandatory if present
+    "MICRNo5": "",  # Optional
+    "IFSCCode5": "",  # Conditional Mandatory if present
+    "DefaultBankFlag5": "",  # Conditional Mandatory if present
+    "ChequeName": "",  # Optional
+    "DividendPayMode": "02",  # Mandatory (01 = Reinvest, 02 = Payout, 03 = Switch, 04 = Direct Credit, 05 = NEFT/RTGS, 06 = ECS, 07 = NACH, 08 = Auto Sweep, 09 = Systematic Transfer Plan)
+    "Address1": "24 1B Rishab avenue",  # Mandatory
+    "Address2": "Rajakilpakkam",  # Optional
+    "Address3": "Tambaram",  # Optional
+    "City": "Chennai",  # Mandatory
+    "State": "TN",  # Mandatory
+    "Pincode": "600073",  # Mandatory
+    "Country": "India",  # Mandatory
+    "ResPhone": "",  # Optional
+    "ResFax": "",  # Optional
+    "OffPhone": "",  # Optional
+    "OffFax": "",  # Optional
+    "Email": "vishnuviswa1970@gmail.com",  # Mandatory
+    "CommunicationMode": "E",  # Mandatory P-Physical, E-Email, M-Mobile
+    "ForeignAddress1": "",  # Conditional Mandatory for NRI
+    "ForeignAddress2": "",  # Optional
+    "ForeignAddress3": "",  # Optional
+    "ForeignCity": "",  # Conditional Mandatory for NRI
+    "ForeignPincode": "",  # Conditional Mandatory for NRI
+    "ForeignState": "",  # Conditional Mandatory for NRI
+    "ForeignCountry": "",  # Conditional Mandatory for NRI
+    "ForeignResPhone": "",  # Optional
+    "ForeignResFax": "",  # Optional
+    "ForeignOffPhone": "",  # Optional
+    "ForeignOffFax": "",  # Optional
+    "IndianMobile": "7010598418",  # Mandatory
+    "PrimaryHolderKYCType": "C",  # Mandatory (K/C/B/E)
+    "PrimaryHolderCKYC": "50052556759765",  # Conditional Mandatory if KYC Type = C
+    "SecondHolderKYCType": "",  # Optional
+    "SecondHolderCKYC": "",  # Conditional Mandatory if KYC Type = C
+    "ThirdHolderKYCType": "",  # Optional
+    "ThirdHolderCKYC": "",  # Conditional Mandatory if KYC Type = C
+    "GuardianKYCType": "",  # Optional
+    "GuardianCKYC": "",  # Conditional Mandatory if KYC Type = C and Minor
+    "PrimaryHolderKRAExemptRefNo": "",  # Conditional Mandatory if Primary Holder PAN Exempt
+    "SecondHolderKRAExemptRefNo": "",  # Conditional Mandatory if Second Holder PAN Exempt
+    "ThirdHolderKRAExemptRefNo": "",  # Conditional Mandatory if Third Holder PAN Exempt
+    "GuardianExemptRefNo": "",  # Conditional Mandatory if Guardian PAN Exempt
+    "AadhaarUpdated": "",  # Optional (Y/N)
+    "MapinId": "",  # Optional
+    "PaperlessFlag": "Z",  # Mandatory; P = Paper, Z = Paperless
+    "LEINo": "",  # Optional
+    "LEIValidity": "",  # Conditional Mandatory (DD/MM/YYYY)
+    "MobileDeclarationFlag": "SE",  # Conditional Mandatory if Mobile No. provided
+    "EmailDeclarationFlag": "SE",  # Conditional Mandatory if Email Id provided
+    "SecondHolderEmail": "",  # Mandatory if Mode of Holding is JO/AS
+    "SecondHolderEmailDeclaration": "",  # Conditional Mandatory if Email provided
+    "SecondHolderMobile": "",  # Mandatory if Mode of Holding is JO/AS
+    "SecondHolderMobileDeclaration": "",  # Conditional Mandatory if Mobile No. provided
+    "ThirdHolderEmail": "",  # Mandatory if Third Holder is present
+    "ThirdHolderEmailDeclaration": "",  # Conditional Mandatory if Email provided
+    "ThirdHolderMobile": "",  # Mandatory if Third Holder is present
+    "ThirdHolderMobileDeclaration": "",  # Conditional Mandatory if Mobile No. provided
+    "GuardianRelationship": "",  # Conditional Mandatory; 23 - FATHER, 24 - MOTHER, etc.
+    "NominationOpt": "Y",  # Optional for Demat; Mandatory for Non-Demat SI Holding
+    "NominationAuthMode": "O",  # Optional; W = Wet, E = eSign, O = OTP
+    "Nominee1Name": "Srisha Viswakumar",  # Conditional Mandatory if NominationOpt = Y
+    "Nominee1Relationship": "13",  # Conditional Mandatory if Nominee present
+    "Nominee1ApplicablePercent": "100",  # Conditional Mandatory if Nominee present
+    "Nominee1MinorFlag": "N",  # Conditional Mandatory if Nominee present
+    "Nominee1DOB": "",  # Conditional Mandatory if MinorFlag = Y
+    "Nominee1Guardian": "",  # Optional
+    "Nominee1GuardianPAN": "",  # Optional
+    "Nominee1IdentityType": "1",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1IDNumber": "HKBPS9322D",  # Conditional Mandatory if ID Type provided
+    "Nominee1Email": "srisha1010@gmail.com",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Mobile": "9941239973",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Address1": "24 1B Rishab avenue",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Address2": "Rajakilpakkam",  # Optional
+    "Nominee1Address3": "Tambaram",  # Optional
+    "Nominee1City": "Chennai",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Pincode": "600073",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee1Country": "India",  # Conditional Mandatory if NomineeOpt = Y
+    "Nominee2Name": "",  # Conditional Mandatory if Nominee1 < 100%
+    "Nominee2Relationship": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2ApplicablePercent": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2MinorFlag": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2DOB": "",  # Conditional Mandatory if Nominee2 available
+    "Nominee2Guardian": "",  # Optional
+    "Nominee2GuardianPAN": "",  # Optional
+    "Nominee2IdentityType": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2IDNumber": "",  # Conditional Mandatory based on ID Type
+    "Nominee2Email": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Mobile": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Address1": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Address2": "",  # Optional
+    "Nominee2Address3": "",  # Optional
+    "Nominee2City": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Pincode": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee2Country": "",  # Conditional Mandatory if Nominee2 Opted
+    "Nominee3Name": "",  # Conditional Mandatory if % < 100%
+    "Nominee3Relationship": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3ApplicablePercent": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3MinorFlag": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3DOB": "",  # Conditional Mandatory if Nominee3 available
+    "Nominee3Guardian": "",  # Optional
+    "Nominee3GuardianPAN": "",  # Optional
+    "Nominee3IdentityType": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3IDNumber": "",  # Conditional Mandatory based on ID Type
+    "Nominee3Email": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Mobile": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Address1": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Address2": "",  # Optional
+    "Nominee3Address3": "",  # Optional
+    "Nominee3City": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Pincode": "",  # Conditional Mandatory if Nominee3 Opted
+    "Nominee3Country": "",  # Conditional Mandatory if Nominee3 Opted
+    "NomineeSOAFlag": "Y",  # Mandatory if NomineeOpt = Y; Y/N display in SOA
+    "Filler1": "",  # Optional
+    "Filler2": "",  # Optional
+    "Filler3": "",  # Optional
+    "Filler4": "",  # Optional
+    "Filler5": "",  # Optional
+    "Filler6": "",  # Optional
+    "Filler7": "",  # Optional
+    "Filler8": "",  # Optional
+    }
+    
+    # Register client
+    result = register_client(access_token, client_data)
+    if result:
+        print("\nClient registration completed successfully.")
+        print("BSE API Response Details:")
+        print(json.dumps(result, indent=2))
+        
+        # Extract BSE response details
+        if "details" in result:
+            bse_response = result.get("details", {})
+            print("\nBSE Status Code:", bse_response.get("Status"))
+            print("BSE Remarks:", bse_response.get("Remarks"))
+            print("BSE Filler1:", bse_response.get("Filler1"))
+            print("BSE Filler2:", bse_response.get("Filler2"))
+    else:
+        print("\nClient registration failed.")
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    main()

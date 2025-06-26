@@ -6,6 +6,12 @@ BSE STAR MF Order Management System
 This module handles all types of orders with BSE STAR MF using SOAP.
 Supports: Lumpsum, SIP, XSIP, Switch, Spread orders with all operations.
 """
+"""
+BSE STAR MF Order Management System
+
+This module handles all types of orders with BSE STAR MF using SOAP.
+Supports: Lumpsum, SIP, XSIP, Switch, Spread orders with all operations.
+"""
 import os
 import json
 import logging
@@ -19,9 +25,13 @@ from requests import Session, RequestException
 from zeep import Client, Transport, Settings
 from zeep.cache import SqliteCache
 from zeep.exceptions import Fault, TransportError
-
+from zeep.plugins import HistoryPlugin  # <-- Added for envelope tracking
+from lxml import etree  # <-- Required to print XML nicely
 from .. import schemas
 from .config import bse_settings
+from typing import Union
+import re
+
 from .validators import (
     validate_transaction_code, validate_reference_number,
     validate_member_code, validate_client_code, validate_scheme_code,
@@ -33,10 +43,8 @@ from .exceptions import (
     BSESoapFault, BSETransportError
 )
 
-# Configure logging with a unique logger name
+# Configure logging
 logger = logging.getLogger('bse_integration')
-
-# Add file handler for SOAP calls with detailed formatting
 soap_handler = logging.FileHandler('bse_soap_calls.log')
 soap_handler.setFormatter(logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -47,27 +55,13 @@ logger.addHandler(soap_handler)
 cache_dir = os.path.join(os.path.dirname(__file__), '.wsdl_cache')
 os.makedirs(cache_dir, exist_ok=True)
 
-# Cached transport factory
-def get_cached_transport():
-    """Get a cached transport instance with persistent SQLite caching"""
-    return Transport(
-        cache=SqliteCache(
-            path=os.path.join(cache_dir, 'zeep.db'),
-            timeout=60*60*24  # 24 hour cache
-        ),
-        timeout=30,  # 30 second timeout
-        operation_timeout=60  # 60 second operation timeout
-    )
-
-# Configure transport with persistent caching
 transport = Transport(
-    cache=SqliteCache(path=os.path.join(cache_dir, 'zeep.db'), timeout=60*60*24),  # 24 hour cache
-    timeout=30,  # 30 second timeout
-    operation_timeout=60,  # 60 second operation timeout
+    cache=SqliteCache(path=os.path.join(cache_dir, 'zeep.db'), timeout=60*60*24),
+    timeout=30,
+    operation_timeout=60,
     session=Session()
 )
 
-# SOAP Namespaces
 SOAP_NS = {
     'soap': 'http://schemas.xmlsoap.org/soap/envelope/',
     'wsa': 'http://www.w3.org/2005/08/addressing',
@@ -79,83 +73,134 @@ class SOAPMessageHandler:
     Handles SOAP message formatting and parsing for BSE STAR MF API
     """
     
+    
     def __init__(self):
         """Initialize the SOAP message handler"""
         self.wsdl_url = bse_settings.BSE_ORDER_ENTRY_WSDL
-        
+        self.service_url = bse_settings.BSE_ORDER_ENTRY_SECURE
+        self.history = HistoryPlugin()  # Plugin to track SOAP requests
+
         try:
-            # Initialize session and transport
-            session = Session()  # Using the imported Session class directly
+            print("DEBUG: About to create requests.Session instance within SOAPMessageHandler.__init__.")
+            print(f"DEBUG: BSE_REQUEST_TIMEOUT (from bse_settings) = {bse_settings.BSE_REQUEST_TIMEOUT}")
+            
+            session = Session()
+            print("DEBUG: requests.Session instance created within SOAPMessageHandler.__init__.")
+
+            # Configure SSL
+            session.verify = bse_settings.BSE_VERIFY_SSL
+            if bse_settings.BSE_SSL_CERT_PATH:
+                session.verify = bse_settings.BSE_SSL_CERT_PATH
+
+            # Setup transport with cache
             transport = Transport(
-                session=session, 
+                session=session,
                 timeout=bse_settings.BSE_REQUEST_TIMEOUT,
                 cache=SqliteCache(path=os.path.join(cache_dir, 'zeep.db'))
             )
-            
-            # Create SOAP client with transport
-            self.client = Client(self.wsdl_url, transport=transport)
+
+            # Initialize SOAP client
+            self._raw_client = Client(self.wsdl_url, transport=transport, plugins=[self.history])
+
+            # Correct SOAP binding (must match WSDL)
+            soap_binding = '{http://tempuri.org/}WSHttpBinding_MFOrderEntry1'
+            self.client = self._raw_client.create_service(soap_binding, self.service_url)
+
+            # Set HTTP headers
+            self._raw_client.transport.session.headers.update({
+                'Content-Type': 'application/soap+xml; charset=utf-8',
+                'Accept': 'application/soap+xml',
+                'SOAPAction': 'http://bsestarmf.in/MFOrderEntry/orderEntryParam',
+                'Connection': 'Keep-Alive'
+            })
+
             logger.info("Initialized SOAP client for BSE Order service")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize SOAP client: {e}", exc_info=True)
             raise BSETransportError(f"WSDL initialization failed: {str(e)}")
-    
+
     def create_soap_envelope(self, method: str, params: Dict[str, Any]) -> str:
-        """
-        Create a SOAP envelope for the given method and parameters
-        """
+        """Create a SOAP envelope for the given method and parameters"""
         try:
-            # Use zeep to create the envelope
-            soap_envelope = self.client.create_message(
-                self.client.service, method, **params
-            )
+            soap_envelope = self._raw_client.create_message(self.client, method, **params)
+
             return soap_envelope
         except Exception as e:
             logger.error(f"Failed to create SOAP envelope: {e}", exc_info=True)
             raise BSEValidationError(f"Failed to create SOAP envelope: {str(e)}")
-    
-    def parse_soap_response(self, response_text: str) -> Dict[str, Any]:
-        """
-        Parse the SOAP response into a structured format
-        """
+
+    def create_purchase_request(self, params: Dict[str, Any]) -> str:
+        """Create a purchase request SOAP envelope"""
         try:
-            # Simple parsing for pipe-separated responses
+            return self.create_soap_envelope("orderEntryParam", params)
+        except Exception as e:
+            logger.error(f"Failed to create purchase request: {e}", exc_info=True)
+            raise BSEValidationError(f"Failed to create purchase request: {str(e)}")
+
+    def parse_order_response(self, response_text: Union[str, 'OrderResponse']) -> 'OrderResponse':
+        """Parse order response from BSE into OrderResponse format"""
+        try:
+            if isinstance(response_text, OrderResponse):
+                return response_text  # already parsed
+            return OrderResponse.from_pipe_separated(response_text)
+        except Exception as e:
+            logger.error(f"Failed to parse order response: {e}", exc_info=True)
+            raise BSEValidationError(f"Failed to parse order response: {str(e)}")
+
+    def parse_soap_response(self, response_text: str) -> Dict[str, Any]:
+        """Parse the SOAP response into a structured format"""
+        try:
             parts = [part.strip() for part in response_text.split('|')]
-            
             result = {
                 "status_code": parts[0] if len(parts) > 0 else "",
                 "message": parts[1] if len(parts) > 1 else "",
                 "success": parts[0] == "100",
                 "data": {}
             }
-            
-            # Add additional data based on response format
             if len(parts) > 2:
                 result["data"]["order_id"] = parts[2]
             if len(parts) > 3:
                 result["data"]["client_code"] = parts[3]
             if len(parts) > 4:
                 result["data"]["bse_remarks"] = parts[4]
-            
             return result
         except Exception as e:
             logger.error(f"Failed to parse SOAP response: {e}", exc_info=True)
             raise BSEValidationError(f"Failed to parse SOAP response: {str(e)}")
-    
+
     async def send_soap_request(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Send a SOAP request to the BSE API
-        """
+        """Send a SOAP request to the BSE API"""
         try:
-            # Create a function to call in a thread
             def soap_call():
                 return getattr(self.client.service, method)(**params)
-            
-            # Execute the SOAP call in a thread to avoid blocking
+
             response = await asyncio.to_thread(soap_call)
             logger.debug(f"BSE Response: {response}")
-            
+
+            # Log full SOAP envelope if available
+            print("DEBUG: Inside send_soap_request, checking SOAP history")
+
+# Log the raw XML content of last sent SOAP request
+            if self.history.last_sent:
+                sent_envelope = etree.tostring(self.history.last_sent.envelope, pretty_print=True, encoding="unicode")
+                print("----- SOAP Request -----")
+                print(sent_envelope)
+                logger.debug("SOAP Request Envelope:\n%s", sent_envelope)
+            else:
+                print("DEBUG: No SOAP request captured in history.")
+
+# Log the raw XML content of last received SOAP response
+            if self.history.last_received:
+                received_envelope = etree.tostring(self.history.last_received.envelope, pretty_print=True, encoding ="unicode")
+                print("----- SOAP Response -----")
+                print(received_envelope)
+                logger.debug("SOAP Response Envelope:\n%s", received_envelope)
+            else:
+                print("DEBUG: No SOAP response captured in history.")
+
             return self.parse_soap_response(str(response))
+
         except Fault as e:
             logger.error(f"SOAP fault: {e}", exc_info=True)
             raise BSESoapFault(f"SOAP fault: {str(e)}")
@@ -165,6 +210,7 @@ class SOAPMessageHandler:
         except Exception as e:
             logger.error(f"Unexpected error: {e}", exc_info=True)
             raise BSEOrderError(f"Unexpected error: {str(e)}")
+
 
 # Order Status Constants
 class OrderStatus:
@@ -203,23 +249,69 @@ class OrderResponse:
     status_code: str
     details: Dict[str, Any]
 
+    @property
+    def success_flag(self) -> str:
+        return self.details.get("success_flag", "N")
+    @property
+    def bse_remarks(self) -> str:
+        return self.details.get("bse_remarks", "")
+    @property
+    def order_number(self) -> str:
+        return self.order_id or ""
+
+
     @classmethod
     def from_pipe_separated(cls, response_text: str) -> 'OrderResponse':
         """Parse pipe-separated BSE response into standard format"""
-        parts = [part.strip() for part in response_text.split('|')]
-        if len(parts) < 4:
-            raise ValueError(f"Invalid response format: {response_text}")
+        if not response_text or not response_text.strip():
+            raise ValueError("Empty response text")
             
+        parts = [part.strip() for part in response_text.split('|')]
+        
+        # Handle minimum required parts
+        if len(parts) < 8:
+            raise ValueError(f"Invalid response format - insufficient parts: {response_text}")
+        
+        trans_type = parts[0]
+        unique_ref_no = parts[1]
+        raw_order_id = parts[2]
+        user_id = parts[3]
+        member_id = parts[4]
+        client_code = parts[5]
+        message = parts[6]
+        status_code = "Y" if "ORD CONF" in parts[6].upper() else "N"
+
+        
+        confirmation_time = None
+        confirmation_match = re.search(r'CONFIRMATION TIME:\s+(.*?)\s+ENTRY BY', message)
+        if confirmation_match:
+            confirmation_time = confirmation_match.group(1).strip()
+
+        
+        extracted_order_id = raw_order_id or ""
+        if not extracted_order_id:
+            order_match = re.search(r'ORDER NO:\s*(\d+)', message)
+            if order_match:
+                extracted_order_id = order_match.group(1)
+        success = status_code == "Y" and extracted_order_id not in ["", "0"]
+
+        
         return cls(
-            success=parts[0] == "100",
-            order_id=parts[2] if len(parts) > 2 else "",
-            message=parts[1],
-            status_code=parts[0],
+            success=success,
+            order_id=extracted_order_id,
+            message=message,
+            status_code=status_code,
             details={
-                "client_code": parts[3] if len(parts) > 3 else "",
-                "bse_remarks": parts[4] if len(parts) > 4 else "",
-                "success_flag": parts[5] if len(parts) > 5 else ("Y" if parts[0] == "100" else "N"),
-                "si_order_id": parts[6] if len(parts) > 6 else None  # For switch orders
+                "trans_type": trans_type,
+                "unique_ref_no": unique_ref_no,
+                "user_id": user_id,
+                "member_id": member_id,
+                "client_code": client_code,
+                "bse_remarks": message,
+                "success_flag": "Y" if success else "N",
+                "order_number": extracted_order_id,
+                "confirmation_time": confirmation_time,
+                "raw_response": response_text
             }
         )
 
@@ -260,13 +352,18 @@ class BSEOrderPlacer:
     Supports various order types: lumpsum, SIP, XSIP, switch, spread.
     """
 
-    def __init__(self) -> None:
+    def __init__(self) -> None: # Note: If your original __init__ took bse_settings as Depends, keep that.
+                                # This snippet doesn't show it explicitly, but earlier thought did.
+                                # Assuming bse_settings is imported globally here for this snippet's context.
         """Initialize BSE Order Placer."""
         logger.info("Initializing BSE Order Placer")
         self.user_id = bse_settings.BSE_USER_ID
         self.member_id = bse_settings.BSE_MEMBER_CODE
+        # Use the secure HTTPS endpoint instead of WSDL
+        self.service_url = bse_settings.BSE_ORDER_ENTRY_SECURE
         self.wsdl_url = bse_settings.BSE_ORDER_ENTRY_WSDL
 
+        logger.debug(f"Using Service URL: {self.service_url}")
         logger.debug(f"Using WSDL URL: {self.wsdl_url}")
         logger.debug(f"User ID: {self.user_id}")
         logger.debug(f"Member ID: {self.member_id}")
@@ -284,32 +381,63 @@ class BSEOrderPlacer:
             logger.info("Initializing SOAP client...")
             
             # Set up cached transport
-            cache = SqliteCache(path=os.path.join(cache_dir, 'zeep.db'))
+            cache = SqliteCache(path=os.path.join(cache_dir, 'zeep.db')) # Ensure cache_dir is defined and accessible
             
             # Configure SOAP client settings
             settings = Settings(
-                strict=False,  # Less strict XML parsing
-                xml_huge_tree=True,  # Handle large XML
-                force_https=True  # Force HTTPS for security
+                strict=False,   # Less strict XML parsing
+                xml_huge_tree=True,   # Handle large XML
+                force_https=True    # Force HTTPS for security
             )
             
-            # Initialize session
+            # Add these debug prints around session initialization
+            print("DEBUG: About to create requests.Session instance within BSEOrderPlacer.__init__.")
+            # If bse_settings is passed as a parameter to __init__, you'd use self.bse_settings.BSE_REQUEST_TIMEOUT
+            # Otherwise, ensure bse_settings is imported or accessible here.
+            # Assuming bse_settings is accessible, as it's used for self.user_id etc.
+            print(f"DEBUG: BSE_REQUEST_TIMEOUT (from bse_settings) = {bse_settings.BSE_REQUEST_TIMEOUT}")
             session = Session()
+            print("DEBUG: requests.Session instance created within BSEOrderPlacer.__init__.")
             
             # Create transport with the session and cache
             transport = Transport(
                 session=session,
                 cache=cache,
-                timeout=30,  # 30 second timeout
-                operation_timeout=60  # 60 second operation timeout
+                timeout=bse_settings.BSE_REQUEST_TIMEOUT,
+                operation_timeout=bse_settings.BSE_REQUEST_TIMEOUT
             )
             
-            # Create SOAP client with transport and settings
+            # Create SOAP client with transport and settings, but use secure service URL
             self.client = Client(
                 self.wsdl_url,
                 transport=transport,
-                settings=settings
+                settings=settings,
+                wsse=None  # No WSSE security
             )
+            
+            # Override the service location to use the secure endpoint
+            # Get the service binding and update the address
+            # Create service with the secure binding
+            binding_name = "{http://tempuri.org/}WSHttpBinding_MFOrderEntry1"
+            self.service = self.client.create_service(
+                binding_name=binding_name,
+                address=self.service_url
+            )
+            logger.info(f"Created service with binding {binding_name} at {self.service_url}")
+            
+            # Add SOAP headers for secure endpoint
+            self.client.transport.session.headers.update({
+                'Content-Type': 'text/xml;charset=UTF-8',
+                'Accept': 'text/xml',
+                'SOAPAction': 'http://bsestarmf.in/MFOrderEntry/orderEntryParam',
+                'X-SOAP-Action': 'http://bsestarmf.in/MFOrderEntry/orderEntryParam',
+                'Connection': 'Keep-Alive'
+            })
+            
+            # Configure transport for HTTPS
+            self.client.transport.session.verify = bse_settings.BSE_VERIFY_SSL
+            if bse_settings.BSE_SSL_CERT_PATH:
+                self.client.transport.session.verify = bse_settings.BSE_SSL_CERT_PATH
             
             logger.info("SOAP client initialized successfully")
             
@@ -366,19 +494,28 @@ class BSEOrderPlacer:
             raise BSEOrderError(f"Invalid SOAP response: {str(e)}")
 
     async def _send_soap_request(self, soap_method: str, params: Dict[str, Any]) -> OrderResponse:
-        """Send SOAP request to BSE with circuit breaker protection"""
-        if not self.circuit.can_execute():
-            raise BSETransportError("Circuit breaker is OPEN - too many recent failures")
-            
+        """Send SOAP request to BSE"""
         try:
             logger.info(f"Sending SOAP request: {soap_method}")
             logger.debug(f"Request parameters: {json.dumps(params, indent=2)}")
 
-            if not hasattr(self.client.service, soap_method):
+            if not hasattr(self.service, soap_method):
                 raise BSEIntegrationError(f"SOAP method {soap_method} not found")
 
+            # Add required BSE headers
+            soap_action = f"http://bsestarmf.in/MFOrderEntry/{soap_method}"
+            self.client.transport.session.headers.update({
+                'SOAPAction': soap_action,
+                'X-SOAP-Action': soap_action
+            })
+
             def soap_call():
-                return getattr(self.client.service, soap_method)(**params)
+                try:
+                    # Use the service object created with the secure binding
+                    return getattr(self.service, soap_method)(**params)
+                except Exception as e:
+                    logger.error(f"SOAP call failed: {e}", exc_info=True)
+                    raise
 
             # Send request with retry logic
             max_retries = bse_settings.BSE_MAX_RETRIES
@@ -391,24 +528,52 @@ class BSEOrderPlacer:
                     response = await asyncio.to_thread(soap_call)
                     logger.debug(f"BSE Raw Response: {response}")
                     
-                    # Parse response
-                    order_response = OrderResponse.from_pipe_separated(str(response))
+                    # Handle different response formats
+                    response_str = str(response).strip()
                     
-                    # Check for specific BSE error codes
-                    if not order_response.success:
-                        error_code = order_response.status_code
-                        error_msg = BSE_ERROR_CODES.get(error_code, "Unknown error")
-                        logger.error(f"BSE Error {error_code}: {error_msg}")
-                        
-                        if error_code in ["101", "102", "103"]:  # Auth/validation errors
-                            raise BSEValidationError(f"BSE Validation Error: {error_msg}")
-                        elif error_code in ["104", "105", "106"]:  # Business logic errors
-                            raise BSEOrderError(f"BSE Order Error: {error_msg}")
-                        else:
-                            raise BSEIntegrationError(f"BSE Error: {error_msg}")
+                    # Check if response is empty or None
+                    if not response_str or response_str.lower() in ['none', 'null', '']:
+                        logger.error("Empty response from BSE")
+                        raise BSEIntegrationError("Empty response from BSE")
                     
-                    # Record success in circuit breaker
-                    self.circuit.record_success()
+                    # Try to parse as pipe-separated format
+                    # After parsing response:
+                    try:
+                        order_response = OrderResponse.from_pipe_separated(response_str)
+                    except (ValueError, IndexError) as parse_error:
+                        logger.error(f"Failed to parse BSE response as pipe-separated: {parse_error}")
+                        logger.error(f"Raw response: {response_str}")
+    
+                        order_response = OrderResponse(
+                            success=False,
+                            order_id="",
+                            message=f"BSE response parsing failed: {response_str}",
+                            status_code="0",
+                            details={"raw_response": response_str}
+                        )
+
+# ✅ Return if parsed successfully
+                    if order_response.success:
+                        return order_response
+
+# ❌ Don’t raise error if message confirms order
+                    if "confirmation time" in order_response.message.lower() and "order no" in order_response.message.lower():
+                        logger.warning("Order appears confirmed but status code is not 'Y'. Proceeding.")
+                        return order_response
+
+# 🚨 Otherwise raise based on status_code
+                    error_code = order_response.status_code
+                    error_msg = BSE_ERROR_CODES.get(error_code, order_response.message or "Unknown error")
+                    logger.error(f"BSE Error {error_code}: {error_msg}")
+
+                    if error_code in ["101", "102", "103"]:
+                        raise BSEValidationError(f"BSE Validation Error: {error_msg}")
+                    elif error_code in ["104", "105", "106"]:
+                        raise BSEOrderError(f"BSE Order Error: {error_msg}")
+                    else:
+                        raise BSEIntegrationError(f"BSE Error: {error_msg}")
+
+                    
                     return order_response
                     
                 except (TransportError, RequestException) as e:
@@ -417,20 +582,25 @@ class BSEOrderPlacer:
                     if attempt < max_retries - 1:
                         await asyncio.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
                     continue
-                except Exception as e:
-                    # Record failure in circuit breaker for non-retry errors
-                    self.circuit.record_failure()
+                except (BSEValidationError, BSEOrderError, BSEIntegrationError):
+                    # Don't retry these errors
                     raise
 
             # If we got here, all retries failed
-            self.circuit.record_failure()
             raise last_error or BSETransportError("All retry attempts failed")
 
-        except Exception as e:
-            logger.error(f"SOAP request failed: {e}", exc_info=True)
-            # Record failure in circuit breaker
-            self.circuit.record_failure()
+        except (TransportError, RequestException) as e:
+            logger.error(f"Transport-level SOAP failure: {e}", exc_info=True)
             raise
+
+        except (BSEValidationError, BSEOrderError, BSEIntegrationError) as be:
+            logger.warning(f"BSE Business Error: {be}", exc_info=True)
+            raise
+
+        except Exception as e:
+            logger.error(f"Unexpected error during SOAP request: {e}", exc_info=True)
+            raise
+
 
     def _validate_response(self, response_text: str) -> Tuple[bool, str]:
         """Validate BSE response and extract status"""
@@ -438,64 +608,82 @@ class BSEOrderPlacer:
         if len(parts) < 2:
             raise BSEOrderError("Invalid response format")
             
-        status_code = parts[0].strip()
+        status_code = parts[0].strip().upper()
         message = parts[1].strip()
         
-        if status_code == "100":
+        if status_code in {"Y", "100"}:
             return True, message
         else:
             return False, message
 
     async def place_lumpsum_order(self, order_data: schemas.LumpsumOrderRequest, encrypted_password: str) -> OrderResponse:
         """Place lumpsum order (Purchase/Redemption)"""
+        
         if not encrypted_password:
             raise BSEValidationError("Encrypted password required")
 
-        # Validate fields
-        validate_transaction_code(order_data.transaction_code)
-        validate_reference_number(order_data.unique_ref_no)
+        # Validate fields using the correct field names from LumpsumOrderRequest
+        validate_transaction_code(order_data.TransCode)
+        validate_reference_number(order_data.TransNo)
         validate_member_code(self.member_id)
-        validate_client_code(order_data.client_code)
-        validate_scheme_code(order_data.scheme_code)
+        validate_client_code(order_data.ClientCode)
+        validate_scheme_code(order_data.SchemeCd)
         
-        if order_data.amount:
-            validate_amount(str(order_data.amount))
-        if order_data.quantity:
-            validate_units(str(order_data.quantity))
+        if order_data.Amount:
+            validate_amount(str(order_data.Amount))
+        if order_data.Qty:
+            validate_units(str(order_data.Qty))
 
-        # Prepare parameters
+        # Prepare parameters using the exact BSE API signature
         params = {
-            "TransCode": order_data.transaction_code,
-            "TransNo": order_data.unique_ref_no,
-            "OrderId": order_data.order_id or "",
+            "TransCode": order_data.TransCode,
+            "TransNo": order_data.TransNo,
+            "OrderId": "",  # Not provided in LumpsumOrderRequest
             "UserID": self.user_id,
             "MemberId": self.member_id,
-            "ClientCode": order_data.client_code,
-            "SchemeCd": order_data.scheme_code,
-            "BuySell": order_data.transaction_type.value,
-            "BuySellType": order_data.buy_sell_type.value,
-            "DPTxn": order_data.dp_txn_mode.value,
-            "OrderVal": str(order_data.amount or ""),
-            "Qty": str(order_data.quantity or ""),
-            "AllRedeem": "Y" if order_data.all_units_flag else "N",
-            "FolioNo": order_data.folio_no or "",
-            "KYCStatus": order_data.kyc_status,
-            "MinRedeem": "Y" if order_data.min_redeem else "N",
-            "DPC": "Y" if order_data.dpc_flag else "N",
-            "SubBrCode": order_data.sub_broker_arn or "",
-            "EUIN": order_data.euin or "",
-            "EUINVal": "Y" if order_data.euin_declaration else "N",
-            "IPAdd": order_data.ip_address or "",
-            "Remarks": order_data.remarks or "",
+            "ClientCode": order_data.ClientCode,
+            "SchemeCd": order_data.SchemeCd,
+            "BuySell": order_data.BuySell,
+            "BuySellType": order_data.BuySellType or "FRESH",
+            "DPTxn": order_data.DPTxn,
+            "OrderVal": str(order_data.Amount or ""),
+            "Qty": str(order_data.Qty or ""),
+            "AllRedeem": order_data.AllRedeem or "N",
+            "FolioNo": order_data.FolioNo or "",
+            "Remarks": order_data.Remarks or "",
+            "KYCStatus": order_data.KYCStatus or "Y",
+            "RefNo": order_data.RefNo,  # Use dedicated RefNo field
+            "SubBrCode": order_data.SubBrokerARN or "",
+            "EUIN": order_data.EUIN or "",
+            "EUINVal": "Y" if order_data.EUIN else "N",
+            "MinRedeem": "N",  # Not provided in LumpsumOrderRequest
+            "DPC": order_data.DPC or "N",
+            "IPAdd": order_data.IPAdd or "",
             "Password": encrypted_password,
-            "PassKey": "",
-            "Param1": "",
+            "PassKey": order_data.PassKey,  # Use the same PassKey used for password encryption
+            "Parma1": "",  # Note: BSE API has typo "Parma1" instead of "Param1"
             "Param2": "",
-            "Param3": ""
+            "Param3": "",
+            "MobileNo": order_data.MobileNo or "",
+            "EmailID": order_data.EmailID or "",
+            "MandateID": order_data.MandateID or "",
+            "Filler1": "",
+            "Filler2": "",
+            "Filler3": "",
+            "Filler4": "",
+            "Filler5": "",
+            "Filler6": ""
         }
 
-        logger.info(f"Placing {order_data.transaction_type} order for {order_data.unique_ref_no}")
-        return await self._send_soap_request("orderEntryParam", params)
+        logger.info(f"Placing {order_data.BuySell} order for {order_data.TransNo}")
+        logger.debug(f"SOAP Request Parameters: {json.dumps(params, indent=2)}")
+        try:
+            response = await self._send_soap_request("orderEntryParam", params)
+            logger.debug(f"SOAP Response: {response}")
+            return response
+        except Exception as e:
+            logger.error(f"SOAP Request failed with parameters: {json.dumps(params, indent=2)}")
+            raise
 
     async def place_sip_order(self, sip_data: schemas.SIPOrderCreate, encrypted_password: str) -> OrderResponse:
         """Place new SIP registration order"""
@@ -513,8 +701,8 @@ class BSEOrderPlacer:
         validate_date_format(sip_data.start_date.strftime("%d/%m/%Y"))
 
         params = {
-            "TransCode": sip_data.transaction_code,
-            "TransNo": sip_data.unique_ref_no,
+            "TransactionCode": sip_data.transaction_code,
+            "UniqueRefNo": sip_data.unique_ref_no,
             "SchemeCode": sip_data.scheme_code,
             "MemberCode": self.member_id,
             "ClientCode": sip_data.client_code,
@@ -527,23 +715,26 @@ class BSEOrderPlacer:
             "FrequencyAllowed": str(sip_data.frequency_allowed),
             "InstallmentAmount": str(sip_data.installment_amount),
             "NoOfInstallment": str(sip_data.no_of_installments),
+            "Remarks": sip_data.remarks or "",
             "FolioNo": sip_data.folio_no or "",
             "FirstOrderFlag": "Y" if sip_data.first_order_today else "N",
-            "SubBrCode": sip_data.sub_broker_arn or "",
-            "EUIN": sip_data.euin or "",
-            "EUINVal": "Y" if sip_data.euin_declaration else "N",
+            "SubberCode": sip_data.sub_broker_arn or "",
+            "Euin": sip_data.euin or "",
+            "EuinVal": "Y" if sip_data.euin_declaration else "N",
             "DPC": "Y" if sip_data.dpc_flag else "N",
-            "RegDate": datetime.now().strftime("%d/%m/%Y"),
+            "RegId": "",
             "IPAdd": sip_data.ip_address or "",
             "Password": encrypted_password,
             "PassKey": "",
-            "MandateID": sip_data.mandate_id,
-            "Brokerage": str(sip_data.brokerage or ""),
-            "Remarks": sip_data.remarks or "",
-            "KYCStatus": sip_data.kyc_status,
             "Param1": "",
             "Param2": "",
-            "Param3": ""
+            "Param3": "",
+            "Filler1": "",
+            "Filler2": "",
+            "Filler3": "",
+            "Filler4": "",
+            "Filler5": "",
+            "Filler6": ""
         }
 
         logger.info(f"Registering SIP for {sip_data.unique_ref_no}")
@@ -679,10 +870,10 @@ class BSEOrderPlacer:
             validate_units(str(switch_data.switch_units))
 
         params = {
-            "TransCode": "SWITCH",
-            "TransNo": switch_data.unique_ref_no,
-            "FromScheme": switch_data.from_scheme_code,
-            "ToScheme": switch_data.to_scheme_code,
+            "TransactionCode": "SWITCH",
+            "UniqueRefNo": switch_data.unique_ref_no,
+            "FromSchemeCode": switch_data.from_scheme_code,
+            "ToSchemeCode": switch_data.to_scheme_code,
             "UserID": self.user_id,
             "MemberCode": self.member_id,
             "ClientCode": switch_data.client_code,
@@ -690,13 +881,20 @@ class BSEOrderPlacer:
             "Units": str(switch_data.switch_units or ""),
             "FolioNo": switch_data.folio_no or "",
             "BuySellType": "FRESH",
-            "DPTxn": switch_data.dp_txn_mode,
-            "SubBrCode": switch_data.sub_broker_arn or "",
-            "EUIN": switch_data.euin or "",
-            "EUINVal": "Y" if switch_data.euin_declaration else "N",
+            "DpTxnMode": switch_data.dp_txn_mode.value,
+            "SubberCode": switch_data.sub_broker_arn or "",
+            "Euin": switch_data.euin or "",
+            "EuinVal": "Y" if switch_data.euin_declaration else "N",
             "KYCStatus": switch_data.kyc_status or "Y",
             "Password": encrypted_password,
-            "Remarks": switch_data.remarks or ""
+            "Remarks": switch_data.remarks or "",
+            "IPAdd": switch_data.ip_address or "",
+            "Param1": "",
+            "Param2": "",
+            "Param3": "",
+            "Filler1": "",
+            "Filler2": "",
+            "Filler3": ""
         }
 
         logger.info(f"Placing switch order for {switch_data.unique_ref_no}")

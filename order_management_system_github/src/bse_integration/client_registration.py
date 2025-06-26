@@ -1,13 +1,12 @@
-# /home/ubuntu/order_management_system/src/bse_integration/client_registration.py
-
 """BSE STAR MF Client Registration Module
 
-This module handles client registration and updates with BSE STAR MF using REST API.
+This module handles client registration with BSE STAR MF using REST API.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime
+import time
 
 import requests
 from requests.exceptions import RequestException
@@ -15,296 +14,258 @@ from requests.exceptions import RequestException
 from .config import bse_settings
 from .exceptions import (
     BSEIntegrationError, BSEClientRegError, BSETransportError, BSEValidationError,
-    BSESoapFault
 )
 from .fields import CLIENT_REGISTRATION_FIELDS, MINIMUM_REQUIRED_FIELDS
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging (use WARNING as default in production)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 class BSEClientRegistrar:
     """
-    Handles client registration and updates with the BSE STAR MF API using REST.
-    Supports both new registrations and modifications of existing clients.
+    Manages client registration with the BSE STAR MF using REST API.
     """
 
     def __init__(self) -> None:
-        """Initialize BSE Client Registrar."""
+        """Initialize BSE Client Registration handler."""
         self.user_id = bse_settings.BSE_USER_ID
-        self.member_id = bse_settings.BSE_MEMBER_CODE
+        self.member_code = bse_settings.BSE_MEMBER_CODE
         self.password = bse_settings.BSE_PASSWORD
-        self.base_url = bse_settings.common_api
-        self.endpoint = bse_settings.CLIENT_REGISTRATION
+        self.url = bse_settings.BSE_UCC_REGISTER_URL or "https://bsestarmfdemo.bseindia.com/BSEMFWEBAPI/UCCAPI/UCCRegistrationV183"
+        
+        # Validate essential config
+        if not self.user_id:
+            raise BSEValidationError("BSE User ID is required")
+        if not self.password:
+            raise BSEValidationError("BSE Password is required")
+        if not self.member_code:
+            raise BSEValidationError("BSE Member Code is required")
+        if not self.url:
+            raise BSEValidationError("BSE UCC Registration URL is required")
+        
+        logger.info(f"Initialized BSE Client Registration handler with URL: {self.url}")
 
-        if not all([self.user_id, self.member_id, self.password]):
-            raise BSEValidationError("BSE User ID, Member Code, and Password are required")
-
-        self.url = f"{self.base_url}{self.endpoint}"
-        logger.info(f"Initialized BSE Client Registrar")
-
-    def _validate_client_data(self, client_data: Dict[str, Any], is_new: bool = True) -> None:
+    def _validate_mandatory_fields(self, client_data: Dict[str, Any]) -> None:
         """
-        Validate client data against BSE requirements.
+        Validate mandatory fields for client registration.
         
         Args:
-            client_data: Dictionary containing client details
-            is_new: Whether this is a new registration (True) or modification (False)
+            client_data: Client registration data
+            
+        Raises:
+            BSEValidationError: If mandatory fields are missing
         """
-        if not isinstance(client_data, dict):
-            raise BSEValidationError("Client data must be a dictionary")
-
-        # Check required fields
-        required_fields = MINIMUM_REQUIRED_FIELDS if is_new else ["ClientCode"]
-        missing_fields = [field for field in required_fields if not client_data.get(field)]
-        if missing_fields:
-            raise BSEValidationError(f"Missing required fields: {', '.join(missing_fields)}")
-
-        # Validate field formats
-        self._validate_field_formats(client_data)
-
-    def _validate_field_formats(self, client_data: Dict[str, Any]) -> None:
-        """Validate formats of client data fields."""
-        # Client Code (max 10 chars)
-        if len(str(client_data.get("ClientCode", ""))) > 10:
-            raise BSEValidationError("ClientCode must not exceed 10 characters")
-
-        # PAN validation (if provided)
-        pan = client_data.get("PrimaryHolderPAN")
-        if pan and (len(pan) != 10 or not pan.isalnum()):
-            raise BSEValidationError("Invalid PAN format")
-
-        # Mobile number validation (if provided)
-        mobile = client_data.get("IndianMobileNo")
-        if mobile and (len(str(mobile)) != 10 or not str(mobile).isdigit()):
-            raise BSEValidationError("Invalid mobile number format")
-
-        # Email validation (if provided)
-        email = client_data.get("Email")
-        if email and ("@" not in email or "." not in email):
-            raise BSEValidationError("Invalid email format")
-
-        # Date validations
-        date_fields = [
-            "PrimaryHolderDOB", "SecondHolderDOB", "ThirdHolderDOB",
-            "GuardianDOB", "Nominee1DOB", "Nominee2DOB", "Nominee3DOB"
+        mandatory_fields = [
+            "ClientCode", "PrimaryHolderFirstName", "TaxStatus", 
+            "Gender", "DOB", "OccupationCode", "HoldingNature",
+            "PrimaryHolderPANExempt", "ClientType", "AccountType1", 
+            "AccountNo1", "IFSCCode1", "DefaultBankFlag1", 
+            "DividendPayMode", "Address1", "City", "State", 
+            "Pincode", "Country", "Email", "CommunicationMode", 
+            "IndianMobile", "PrimaryHolderKYCType", "PaperlessFlag"
         ]
-        for field in date_fields:
-            date_str = client_data.get(field)
-            if date_str:
-                try:
-                    datetime.strptime(date_str, "%d/%m/%Y")
-                except ValueError:
-                    raise BSEValidationError(f"Invalid date format for {field}. Use DD/MM/YYYY")
-
-        # Percentage validations
-        percentage_fields = ["Nominee1Percentage", "Nominee2Percentage", "Nominee3Percentage"]
-        total_percentage = 0
-        for field in percentage_fields:
-            value = client_data.get(field)
-            if value:
-                try:
-                    percentage = float(value)
-                    if not 0 <= percentage <= 100:
-                        raise BSEValidationError(f"{field} must be between 0 and 100")
-                    total_percentage += percentage
-                except ValueError:
-                    raise BSEValidationError(f"Invalid percentage value for {field}")
-
-        if total_percentage > 0 and total_percentage != 100:
-            raise BSEValidationError("Total nominee percentage must equal 100")
+        
+        # Conditional mandatory fields based on other field values
+        if client_data.get("HoldingNature") in ["JO", "AS"]:
+            mandatory_fields.extend(["SecondHolderFirstName", "SecondHolderLastName", "SecondHolderDOB"])
+            
+        if client_data.get("PrimaryHolderPANExempt") == "N":
+            mandatory_fields.append("PrimaryHolderPAN")
+            
+        if client_data.get("ClientType") == "D":
+            mandatory_fields.append("DefaultDP")
+            
+        if client_data.get("DefaultDP") == "CDSL":
+            mandatory_fields.extend(["CDSLDPID", "CDSLCLTID"])
+            
+        if client_data.get("DefaultDP") == "NSDL":
+            mandatory_fields.extend(["NSDLDPID", "NSDLCLTID"])
+            
+        missing_fields = [field for field in mandatory_fields if not client_data.get(field)]
+        if missing_fields:
+            raise BSEValidationError(f"Missing mandatory fields: {', '.join(missing_fields)}")
 
     def _to_param_str(self, client_data: Dict[str, Any]) -> str:
         """
-        Convert client data to BSE's pipe-separated format.
+        Convert client data dictionary to pipe-separated string.
         
         Args:
-            client_data: Dictionary containing client details
+            client_data: Client registration data
             
         Returns:
-            Pipe-separated string of client data
+            Pipe-separated string of client data values
         """
-        try:
-            values = []
-            for field in CLIENT_REGISTRATION_FIELDS:
-                value = client_data.get(field, "")
-                # Handle special cases
-                if isinstance(value, bool):
-                    value = "Y" if value else "N"
-                elif isinstance(value, (int, float)):
-                    value = str(value)
-                elif value is None:
-                    value = ""
-                values.append(str(value).strip())
-            return "|".join(values)
-        except Exception as e:
-            logger.error(f"Error converting client data to parameter string: {e}")
-            raise BSEValidationError(f"Error formatting client data: {str(e)}")
+        # The BSE API requires exactly 183 fields in a specific order
+        # We'll use the keys from client_data in their original order
+        # This assumes the client_data dictionary is properly structured with all 183 fields
+        
+        # Simply join all values with pipe separator
+        param_str = "|".join(str(value).strip() for value in client_data.values())
+        logger.debug(f"Generated param string (first 50 chars): {param_str[:50]}...")
+        return param_str
 
-    def _construct_payload(self, regn_type: str, param_str: str, filler1: str = "", filler2: str = "") -> Dict[str, str]:
+    def _construct_payload(self, regn_type: str, client_data: Dict[str, Any],
+                         filler1: str = "", filler2: str = "") -> Dict[str, Any]:
         """
-        Create the API request payload.
+        Construct payload for BSE client registration API.
         
         Args:
-            regn_type: Registration type ("NEW" or "MOD")
-            param_str: Pipe-separated client data string
-            filler1: Optional filler field 1
-            filler2: Optional filler field 2
+            regn_type: Registration type (NEW/MOD)
+            client_data: Client registration data
+            filler1: Optional filler field
+            filler2: Optional filler field
             
         Returns:
-            Dictionary containing the API request payload
+            Payload dictionary for BSE API
         """
-        if regn_type not in ["NEW", "MOD"]:
-            raise BSEValidationError("Registration type must be either 'NEW' or 'MOD'")
-        
+        # Following the exact structure from the example code
         return {
             "UserId": self.user_id,
-            "MemberCode": self.member_id,
+            "MemberCode": self.member_code,
             "Password": self.password,
             "RegnType": regn_type,
-            "Param": param_str,
+            "Param": self._to_param_str(client_data),
             "Filler1": filler1,
             "Filler2": filler2
         }
 
-    def _post(self, payload: Dict[str, str]) -> Dict[str, Any]:
-        """
-        Send POST request to BSE API.
-        
-        Args:
-            payload: API request payload
-            
-        Returns:
-            Dictionary containing the API response
-        """
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-
-        try:
-            logger.debug(f"Sending request to {self.url}")
-            response = requests.post(
-                self.url,
-                json=payload,
-                headers=headers,
-                timeout=bse_settings.REQUEST_TIMEOUT
-            )
-            response.raise_for_status()
-            
-            response_data = response.json()
-            logger.debug(f"Received response: {response_data}")
-
-            # Check for BSE error responses
-            if response_data.get("StatusCode") != bse_settings.SUCCESS_CODE:
-                raise BSEClientRegError(
-                    f"BSE Error: {response_data.get('Remarks', 'Unknown error')}"
-                )
-
-            return response_data
-
-        except RequestException as e:
-            logger.error(f"API request failed: {e}", exc_info=True)
-            raise BSETransportError(f"API request failed: {str(e)}")
-        except ValueError as e:
-            logger.error(f"Invalid JSON response: {e}", exc_info=True)
-            raise BSEClientRegError(f"Invalid API response format: {str(e)}")
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}", exc_info=True)
-            raise BSEIntegrationError(f"Unexpected error: {str(e)}")
-
-    def register_client(self, client_data: Dict[str, Any], filler1: str = "", filler2: str = "") -> Dict[str, Any]:
+    async def register_client(self, client_data: Dict[str, Any],
+                        filler1: str = "", filler2: str = "") -> Dict[str, Any]:
         """
         Register a new client with BSE.
         
         Args:
-            client_data: Dictionary containing client details
-            filler1: Optional filler field 1
-            filler2: Optional filler field 2
+            client_data: Client registration data
+            filler1: Optional filler field
+            filler2: Optional filler field
             
         Returns:
-            Dictionary containing the registration response
+            BSE API response
+            
+        Raises:
+            BSEIntegrationError: If registration fails
         """
-        logger.info(f"Registering new client with code: {client_data.get('ClientCode')}")
-        
         try:
-            # Validate client data for new registration
-            self._validate_client_data(client_data, is_new=True)
+            # Check if we have the required number of fields
+            if len(client_data) != 183:
+                logger.warning(f"Client data contains {len(client_data)} fields, but BSE requires exactly 183 fields.")
             
-            # Convert to BSE format and send request
-            param_str = self._to_param_str(client_data)
-            payload = self._construct_payload("NEW", param_str, filler1, filler2)
-            response = self._post(payload)
+            # Construct payload exactly as in the example
+            payload = self._construct_payload("NEW", client_data, filler1, filler2)
+            logger.info(f"Registering client with code: {client_data.get('ClientCode')}")
+            logger.debug(f"Registration payload: {payload}")
             
-            logger.info(f"Successfully registered client {client_data.get('ClientCode')}")
+            # Send request
+            response = await self._post(payload)
+            logger.info(f"Registration response: {response}")
+            
             return response
-
         except Exception as e:
-            logger.error(f"Failed to register client {client_data.get('ClientCode')}: {e}", exc_info=True)
-            if isinstance(e, BSEIntegrationError):
-                raise
-            raise BSEClientRegError(f"Failed to register client: {str(e)}")
+            logger.error(f"Client registration failed: {e}", exc_info=True)
+            raise BSEIntegrationError(f"Client registration failed: {str(e)}")
 
-    def update_client(self, client_data: Dict[str, Any], filler1: str = "", filler2: str = "") -> Dict[str, Any]:
+    async def update_client(self, client_data: Dict[str, Any],
+                      filler1: str = "", filler2: str = "") -> Dict[str, Any]:
         """
-        Update existing client details with BSE.
+        Update an existing client with BSE.
         
         Args:
-            client_data: Dictionary containing client details to update
-            filler1: Optional filler field 1
-            filler2: Optional filler field 2
+            client_data: Client registration data
+            filler1: Optional filler field
+            filler2: Optional filler field
             
         Returns:
-            Dictionary containing the update response
+            BSE API response
+            
+        Raises:
+            BSEIntegrationError: If update fails
         """
-        logger.info(f"Updating client with code: {client_data.get('ClientCode')}")
-        
         try:
-            # Validate client data for modification
-            self._validate_client_data(client_data, is_new=False)
+            # Validate mandatory fields
+            self._validate_mandatory_fields(client_data)
             
-            # Convert to BSE format and send request
-            param_str = self._to_param_str(client_data)
-            payload = self._construct_payload("MOD", param_str, filler1, filler2)
-            response = self._post(payload)
+            # Construct payload
+            payload = self._construct_payload("MOD", client_data, filler1, filler2)
+            logger.info(f"Updating client with code: {client_data.get('ClientCode')}")
+            logger.debug(f"Update payload: {payload}")
             
-            logger.info(f"Successfully updated client {client_data.get('ClientCode')}")
+            # Send request
+            response = await self._post(payload)
+            logger.info(f"Update response: {response}")
+            
             return response
-
         except Exception as e:
-            logger.error(f"Failed to update client {client_data.get('ClientCode')}: {e}", exc_info=True)
-            if isinstance(e, BSEIntegrationError):
-                raise
-            raise BSEClientRegError(f"Failed to update client: {str(e)}")
+            logger.error(f"Client update failed: {e}", exc_info=True)
+            raise BSEIntegrationError(f"Client update failed: {str(e)}")
 
-    def get_client_details(self, client_code: str) -> Dict[str, Any]:
+    async def _post(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Fetch client details from BSE.
+        Send POST request to BSE API.
         
         Args:
-            client_code: Client code to fetch details for
+            payload: Request payload
             
         Returns:
-            Dictionary containing client details
-        """
-        logger.info(f"Fetching details for client: {client_code}")
-        
-        try:
-            payload = {
-                "UserId": self.user_id,
-                "MemberCode": self.member_id,
-                "Password": self.password,
-                "ClientCode": client_code
-            }
+            BSE API response
             
-            response = self._post(payload)
-            logger.info(f"Successfully fetched details for client {client_code}")
-            return response
+        Raises:
+            BSEIntegrationError: If API call fails
+        """
+        try:
+            headers = {"Content-Type": "application/json"}
+            
+            # Log the full request details for debugging
+            logger.debug(f"Request URL: {self.url}")
+            logger.debug(f"Request headers: {headers}")
+            logger.debug(f"Request payload: {payload}")
+            
+            # Use requests in async context
+            import asyncio
+            response = await asyncio.to_thread(
+                requests.post,
+                self.url,
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+            
+            # Log the full response for debugging
+            logger.debug(f"Response status code: {response.status_code}")
+            logger.debug(f"Response headers: {response.headers}")
+            logger.debug(f"Response body: {response.text}")
+            
+            response.raise_for_status()
+            
+            # Try to parse JSON response
+            try:
+                json_response = response.json()
+                # Log the parsed JSON response
+                logger.info(f"Parsed BSE API response: {json_response}")
+                return json_response
+            except Exception as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                logger.error(f"Raw response: {response.text}")
+                return {"Status": "999", "Remarks": f"Failed to parse response: {str(e)}", "Filler1": "", "Filler2": ""}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {e}", exc_info=True)
+            raise BSEIntegrationError(f"API request failed: {str(e)}")
 
-        except Exception as e:
-            logger.error(f"Failed to fetch client details for {client_code}: {e}", exc_info=True)
-            if isinstance(e, BSEIntegrationError):
-                raise
-            raise BSEClientRegError(f"Failed to fetch client details: {str(e)}")
-
-
+    def create_client_code(self, client_data: Dict[str, Any]) -> str:
+        """
+        Generates a unique ClientCode using: DT<FirstName><LastName><YYYY from DOB>
+        
+        Args:
+            client_data: Client data containing FirstName, LastName, and PrimaryHolderDOB
+            
+        Returns:
+            Generated client code
+        """
+        first = client_data.get("PrimaryHolderFirstName", "").strip().title()
+        last = client_data.get("PrimaryHolderLastName", "").strip().title()
+        dob = client_data.get("PrimaryHolderDOB", "").strip()
+        try:
+            year = datetime.strptime(dob, "%d/%m/%Y").year
+        except ValueError:
+            year = "0000"
+        code = f"DT{first}{last}{year}"
+        return code.upper()

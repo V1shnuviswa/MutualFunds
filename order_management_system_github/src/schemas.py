@@ -131,7 +131,7 @@ class OrderBase(BaseModel):
     transaction_code: str = Field(..., max_length=3)
     unique_ref_no: str = Field(..., max_length=19, description="Unique reference number from member")
     order_id: Optional[str] = Field(None, max_length=8)
-    user_id: str = Field(..., max_length=5)
+    user_id: str = Field(..., max_length=20)
     member_id: str = Field(..., max_length=20)
     client_code: str = Field(..., max_length=20)
     scheme_code: str = Field(..., max_length=20)
@@ -150,34 +150,35 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 class LumpsumOrderRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    model_config = ConfigDict(populate_by_name=True)
 
-    trans_code: Optional[str] = Field("NEW", alias="TransCode", description="Order: NEW/Modification/Cancellation")
-    unique_ref_no: str = Field(..., alias="TransNo", description="Unique reference number")
-    client_code: str = Field(..., alias="ClientCode", description="Client code")
-    scheme_code: str = Field(..., alias="SchemeCd", description="BSE scheme code")
-    transaction_type: str = Field(..., alias="BuySell", description="Type of transaction (P/R)")
-    buy_sell_type: Optional[str] = Field("FRESH", alias="BuySellType", description="FRESH/ADDITIONAL")
-    dp_txn_mode: str = Field(..., alias="DPTxn", description="CDSL/NSDL/PHYSICAL")
-    
-    amount: Optional[float] = Field(None, alias="Amount", description="Amount for purchase/redemption")
-    quantity: Optional[float] = Field(None, alias="Qty", description="Quantity for redemption")
-    all_units_flag: Optional[str] = Field(None, alias="AllRedeem", description="All units flag (Y/N)")
-    folio_no: Optional[str] = Field(None, alias="FolioNo", description="Folio number")
-    remarks: Optional[str] = Field(None, alias="Remarks", description="Additional comments")
-
-    kyc_status: Optional[str] = Field("Y", alias="KYCStatus", description="KYC status (Y/N)")
-    sub_arn_code: Optional[str] = Field(None, alias="SubBrokerARN", description="Sub broker code")
-    euin: Optional[str] = Field(None, alias="EUIN", description="EUIN code")
-    euin_declared: Optional[str] = Field(None, alias="EUINFlag", description="EUIN declaration (Y/N)")
-    dpc_flag: Optional[str] = Field("N", alias="DPC", description="DPC flag (Y/N)")
-    ip_address: Optional[str] = Field(None, alias="IPAdd", description="Client IP address")
-
-    password: Optional[str] = Field(None, alias="Password", description="Encrypted password")
-    pass_key: Optional[str] = Field(None, alias="PassKey", description="Pass Key")
-    mobile_no: Optional[str] = Field(None, alias="MobileNo", description="Mobile number")
-    email_id: Optional[str] = Field(None, alias="EmailID", description="Email ID")
-    mandate_id: Optional[str] = Field(None, alias="MandateID", description="Mandate ID")
+    TransCode: str = Field("NEW", description="Order: NEW/Modification/Cancellation")
+    TransNo: str = Field(..., description="Unique reference number")
+    RefNo: str = Field(..., description="Unique reference number for BSE")
+    UserID: str = Field(..., description="BSE User ID")
+    MemberId: str = Field(..., description="BSE Member ID")
+    ClientCode: str = Field(..., description="Client code")
+    SchemeCd: str = Field(..., description="BSE scheme code")
+    BuySell: str = Field(..., description="Type of transaction (P/R)")
+    BuySellType: str = Field("FRESH", description="FRESH/ADDITIONAL")
+    DPTxn: str = Field(..., description="CDSL/NSDL/PHYSICAL")
+    Amount: float = Field(None, description="Amount for purchase/redemption")
+    Qty: float = Field(None, description="Quantity for redemption")
+    AllRedeem: str = Field("N", description="All units flag (Y/N)")
+    FolioNo: Optional[str] = Field(..., description="Folio number")
+    Remarks: Optional[str] = Field(None, description="Additional comments")
+    KYCStatus: str = Field("Y", description="KYC status (Y/N)")
+    SubBrokerARN: Optional[str] = Field(None, description="Sub broker code")
+    EUIN: str = Field(..., description="EUIN code")
+    EUINFlag: str = Field("N", description="EUIN declaration (Y/N)")
+    MinRedeem: str = Field("N", description="Minimum redemption flag (Y/N)")
+    DPC: str = Field("Y", description="DPC flag (Y)")
+    IPAdd: Optional[str] = Field(None, description="Client IP address")
+    Password: str = Field(..., description="Encrypted password")
+    PassKey: str = Field(..., description="Pass Key")
+    MobileNo: Optional[str] = Field(None, description="Mobile number")
+    EmailID: Optional[str] = Field(None, description="Email ID")
+    MandateID: Optional[str] = Field(None, description="Mandate ID")
 
 
 
@@ -205,6 +206,7 @@ class SIPOrderCreate(OrderBase):
     mandate_id: str = Field(..., max_length=20)
     brokerage: Optional[Decimal] = Field(None, max_digits=8, decimal_places=2)
     internal_ref_no: Optional[str] = Field(None, max_length=25)
+    dpc_flag: bool = Field(False)
 
 class SIPOrderModify(BaseModel):
     """SIP order modification model matching BSE specs"""
@@ -215,7 +217,7 @@ class SIPOrderModify(BaseModel):
     sip_reg_id: str = Field(..., max_length=10)
     member_id: str = Field(..., max_length=20)
     client_code: str = Field(..., max_length=20)
-    user_id: str = Field(..., max_length=5)
+    user_id: str = Field(..., max_length=20)
     new_amount: Optional[Decimal] = Field(None, max_digits=14, decimal_places=2)
     new_installments: Optional[int] = Field(None, ge=1, le=9999)
 
@@ -252,7 +254,7 @@ class XSIPOrderModify(BaseModel):
     xsip_reg_id: str = Field(..., max_length=10)
     member_id: str = Field(..., max_length=20)
     client_code: str = Field(..., max_length=20)
-    user_id: str = Field(..., max_length=5)
+    user_id: str = Field(..., max_length=20)
     new_amount: Optional[Decimal] = Field(None, max_digits=14, decimal_places=2)
     new_installments: Optional[int] = Field(None, ge=1, le=9999)
 
@@ -448,7 +450,7 @@ class OrderResponse(BaseModel):
     transaction_code: str = Field(..., max_length=3)
     unique_ref_no: str = Field(..., max_length=19)
     order_id: Optional[str] = Field(None, max_length=8)
-    user_id: str = Field(..., max_length=5)
+    user_id: str = Field(..., max_length=20)
     member_id: str = Field(..., max_length=20)
     client_code: str = Field(..., max_length=20)
     bse_remarks: Optional[str] = Field(None, max_length=1000)
