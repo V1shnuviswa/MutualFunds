@@ -1,5 +1,5 @@
 # /home/ubuntu/order_management_system/src/main.py
-
+import os 
 from fastapi import FastAPI, Depends, HTTPException, Request, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -98,7 +98,11 @@ async def startup():
     await connect_db()
     # Don't create tables automatically - they already exist
     # setup_database()  # Tables are already created
-    
+    if os.getenv("INIT_DB", "false").lower() == "true":
+        print("🚀 INIT_DB is true. Creating tables...")
+        setup_database()
+    else:
+        print("✅ Skipping table creation (INIT_DB not true)")
     # Using real BSE services
     print("Using REAL BSE services")
 
