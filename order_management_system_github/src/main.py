@@ -158,6 +158,16 @@ def debug_routes():
 def get_my_ip():
     ip = requests.get("https://api64.ipify.org?format=json").json()
     return ip
+
+@app.get("/test-bse-wsdl")
+def test_bse_wsdl():
+    import requests
+    try:
+        response = requests.get("https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc?wsdl", timeout=10)
+        return {"status": "success", "content": response.text[:500]}  # show just the first part
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 # Create a direct implementation of the lumpsum endpoint at the original path
 #@app.post("/api/v1/orders/lumpsum-direct", tags=["orders"], include_in_schema=True)
 #async def direct_lumpsum_order(request: Request):
