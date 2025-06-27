@@ -17,8 +17,9 @@ from src.routers import (
     auth_router, orders_router, reports_router, price_router,
     payment_router, monitoring_router, holdings_router, registration_router,
     bse_auth
+
 )
-# Import BSE router from auth module
+import requests
 from src.bse_integration.auth import bse_router
 from src.bse_integration.config import bse_settings
 from src.bse_integration.order import BSEOrderPlacer
@@ -153,7 +154,10 @@ def debug_routes():
         }
         for route in app.routes
     ]
-
+@app.get("/my-ip", include_in_schema=False)
+def get_my_ip():
+    ip = requests.get("https://api64.ipify.org?format=json").json()
+    return ip
 # Create a direct implementation of the lumpsum endpoint at the original path
 #@app.post("/api/v1/orders/lumpsum-direct", tags=["orders"], include_in_schema=True)
 #async def direct_lumpsum_order(request: Request):
