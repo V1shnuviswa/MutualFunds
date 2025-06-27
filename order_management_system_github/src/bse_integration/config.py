@@ -226,6 +226,7 @@ import os
 from typing import Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict
+print("Loaded BSE_USER_ID:", os.getenv("BSE_USER_ID"))
 
 # Load .env file if present
 try:
