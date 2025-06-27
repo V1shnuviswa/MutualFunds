@@ -1,4 +1,4 @@
-# /home/ubuntu/order_management_system/src/bse_integration/config.py
+'''# /home/ubuntu/order_management_system/src/bse_integration/config.py
 
 """BSE STAR MF Integration Configuration
 
@@ -216,3 +216,102 @@ class BSESettings(BaseSettings):
 # Create settings instance
 bse_settings = BSESettings()
 
+'''
+
+# /home/ubuntu/order_management_system/src/bse_integration/config.py
+
+"""BSE STAR MF Integration Configuration"""
+
+import os
+from typing import Optional
+from pydantic_settings import BaseSettings
+from pydantic import Field, ConfigDict
+
+# Load .env file if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+class BSESettings(BaseSettings):
+    model_config = ConfigDict(
+        env_file=".env", 
+        case_sensitive=True,
+        extra="ignore"
+    )
+
+    # Authentication settings
+    BSE_USER_ID: str = Field(..., description="BSE user ID")
+    BSE_PASSWORD: str = Field(..., description="BSE password")
+    BSE_MEMBER_CODE: str = Field(..., description="BSE member code")
+    BSE_PASSKEY: str = Field(..., description="BSE passkey")
+
+    # URLs and WSDLs
+    BSE_BASE_URL: str = Field(default="https://bsestarmfdemo.bseindia.com/StarMFCommonAPI")
+    BSE_REGISTRATION_PATH: str = Field(default="/ClientMaster/Registration")
+    common_api: str = Field(default="https://bsestarmfdemo.bseindia.com/StarMFCommonAPI")
+    BSE_UCC_BASE_URL: str = Field(default="https://bsestarmfdemo.bseindia.com/BSEMFWEBAPI")
+    BSE_UCC_REGISTER_URL: str = Field(..., description="URL for UCC Registration API")
+    CLIENT_REGISTRATION: str = Field(default="/UCCAPI/UCCRegistrationV183")
+
+    BSE_ORDER_ENTRY_BASE: str = Field(default="https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc")
+    BSE_ORDER_ENTRY_WSDL: str = Field(..., description="WSDL URL for order entry service")
+    BSE_ORDER_ENTRY_SECURE: str = Field(default="https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure")
+
+    BSE_UPLOAD_BASE: str = Field(default="https://bsestarmfdemo.bseindia.com/MFUploadService/MFUploadService.svc")
+    BSE_UPLOAD_WSDL: str = Field(..., description="WSDL URL for upload service")
+    BSE_UPLOAD_SECURE: str = Field(default="https://bsestarmfdemo.bseindia.com/MFUploadService/MFUploadService.svc/Secure")
+
+    BSE_PRICE_BASE: str = Field(default="https://bsestarmfdemo.bseindia.com/StarMFWebService/StarMFWebService.svc")
+    BSE_PRICE_WSDL: str = Field(..., description="WSDL URL for price service")
+    BSE_PRICE_SECURE: str = Field(default="https://bsestarmfdemo.bseindia.com/StarMFWebService/StarMFWebService.svc/Secure")
+
+    BSE_AUTH_WSDL: str = Field(..., description="WSDL URL for auth (same as order entry)")
+    BSE_AUTH_SECURE: str = Field(default="https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure")
+
+    BSE_API_BASE_URL: str = Field(default="https://bsestarmfdemo.bseindia.com")
+
+    # File Upload
+    BSE_UPLOAD_LOCATION: str = Field(default="./uploads")
+    BSE_MAX_FILE_SIZE: int = Field(default=10485760)
+
+    # Timeouts
+    BSE_REQUEST_TIMEOUT: int = Field(default=60)
+    BSE_CONNECT_TIMEOUT: int = Field(default=30)
+
+    # Retry & Rate limit
+    BSE_MAX_RETRIES: int = Field(default=3)
+    BSE_RETRY_DELAY: int = Field(default=1)
+    BSE_MAX_REQUESTS_PER_MINUTE: int = Field(default=60)
+
+    # Response
+    BSE_SUCCESS_CODE: str = Field(default="100")
+    BSE_ERROR_PREFIX: str = Field(default="BSE-")
+
+    # Order Settings
+    BSE_MIN_SIP_AMOUNT: float = Field(default=500.0)
+    BSE_MIN_LUMPSUM_AMOUNT: float = Field(default=5000.0)
+    BSE_MAX_SIP_INSTALLMENTS: int = Field(default=999)
+
+    # Mandate
+    BSE_MIN_MANDATE_AMOUNT: float = Field(default=500.0)
+    BSE_MAX_MANDATE_AMOUNT: float = Field(default=9999999999.0)
+
+    # Client
+    BSE_DEFAULT_DP_TXN: str = Field(default="P")
+    BSE_DEFAULT_CLIENT_TYPE: str = Field(default="P")
+
+    # SSL
+    BSE_USE_HTTPS: bool = Field(default=True)
+    BSE_VERIFY_SSL: bool = Field(default=True)
+    BSE_SSL_CERT_PATH: Optional[str] = Field(default=None)
+
+    # Dev toggle
+    USE_MOCK_BSE: bool = Field(default=False)
+
+    # Session
+    SESSION_TIMEOUT: int = Field(default=3600)
+
+# Exported instance
+bse_settings = BSESettings()
