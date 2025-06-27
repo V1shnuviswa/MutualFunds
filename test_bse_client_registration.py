@@ -117,7 +117,7 @@ def main():
     
     # Create client registration data
     client_data = {
-    "ClientCode": "0111000011",  # Mandatory
+    "ClientCode": "0111100011",  # Mandatory
     "PrimaryHolderFirstName": "Vishnu",  # Mandatory
     "PrimaryHolderMiddleName": "",  # Optional
     "PrimaryHolderLastName": "Viswakumar",  # Optional
@@ -142,7 +142,7 @@ def main():
     "SecondHolderPANExempt": "",  # Mandatory if Joint holding and name provided
     "ThirdHolderPANExempt": "",  # Mandatory if Third Holder name provided
     "GuardianPANExempt": "",  # Conditional Mandatory for Minor clients
-    "PrimaryHolderPAN": "QTUPV4977J",  # Conditional Mandatory if PAN Exempt = N
+    "PrimaryHolderPAN": "STUPV4977J",  # Conditional Mandatory if PAN Exempt = N
     "SecondHolderPAN": "",  # Conditional Mandatory if PAN Exempt = N and name provided
     "ThirdHolderPAN": "",  # Conditional Mandatory if PAN Exempt = N and name provided
     "GuardianPAN": "",  # Conditional Mandatory if Guardian name is provided

@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from databases import Database
+from sqlalchemy.engine.url import make_url
 
 # Database connection configuration
 # PostgreSQL connection string
@@ -15,13 +16,21 @@ DATABASE_URL = os.getenv(
 )
 
 # SQLAlchemy setup for ORM (synchronous for model definition)
-engine = create_engine(DATABASE_URL)
+url = make_url(DATABASE_URL)
+
+connect_args = {}
+if 'localhost' not in url.host and '127.0.0.1' not in url.host:
+    connect_args = {"sslmode": "require"}
+
+# SQLAlchemy setup for ORM (synchronous for model definition)
+engine = create_engine(DATABASE_URL, connect_args=connect_args)  # 👈 updated this line
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine,
-    expire_on_commit=False  # Prevents session from being expired
-)
+    expire_on_commit=False
+) # Prevents session from being expired
+
 Base = declarative_base()
 metadata = MetaData()
 

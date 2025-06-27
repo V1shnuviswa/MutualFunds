@@ -4512,3 +4512,10 @@ src.bse_integration.exceptions.BSEIntegrationError: BSE Error: FAILED: CLIENT NO
 2025-06-26 18:33:09,462 - bse_integration - INFO - Initialized SOAP client for BSE Order service
 2025-06-26 18:33:09,567 - bse_integration - INFO - Placing P order for 20250626638511926
 2025-06-26 18:33:09,567 - bse_integration - INFO - Sending SOAP request: orderEntryParam
+2025-06-27 11:16:56,519 - bse_integration - INFO - Initializing BSE Order Placer
+2025-06-27 11:16:56,520 - bse_integration - INFO - Initializing SOAP client...
+2025-06-27 11:16:56,847 - bse_integration - INFO - Created service with binding {http://tempuri.org/}WSHttpBinding_MFOrderEntry1 at https://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc/Secure
+2025-06-27 11:16:56,847 - bse_integration - INFO - SOAP client initialized successfully
+2025-06-27 11:16:56,946 - bse_integration - INFO - Initialized SOAP client for BSE Order service
+2025-06-27 11:16:57,071 - bse_integration - INFO - Placing P order for 20250627638519396
+2025-06-27 11:16:57,071 - bse_integration - INFO - Sending SOAP request: orderEntryParam
