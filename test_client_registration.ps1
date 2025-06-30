@@ -36,7 +36,7 @@ Write-Host "`nStep 3: Registering client with BSE..."
 # Use minimal set of fields for testing
 $clientData = @{
     # Required fields in the correct order
-    ClientCode = "0000000111"
+    ClientCode = "0000000011"
     PrimaryHolderFirstName = "Vishnu"
     PrimaryHolderMiddleName = ""
     PrimaryHolderLastName = "Viswa"

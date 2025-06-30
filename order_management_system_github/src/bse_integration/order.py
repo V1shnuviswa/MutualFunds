@@ -72,10 +72,13 @@ class SOAPMessageHandler:
     """
     Handles SOAP message formatting and parsing for BSE STAR MF API
     """
-    
+    print("📢 WSDL URL:", bse_settings.BSE_ORDER_ENTRY_WSDL)
+    print("📢 SECURE URL:", bse_settings.BSE_ORDER_ENTRY_SECURE)
     
     def __init__(self):
         """Initialize the SOAP message handler"""
+        print("📢 WSDL URL:", bse_settings.BSE_ORDER_ENTRY_WSDL)
+        print("📢 SECURE URL:", bse_settings.BSE_ORDER_ENTRY_SECURE)
         self.wsdl_url = bse_settings.BSE_ORDER_ENTRY_WSDL
         self.service_url = bse_settings.BSE_ORDER_ENTRY_SECURE
         self.history = HistoryPlugin()  # Plugin to track SOAP requests
