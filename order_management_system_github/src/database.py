@@ -10,10 +10,11 @@ from sqlalchemy.engine.url import make_url
 
 # Database connection configuration
 # PostgreSQL connection string
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql://postgres:postgres@localhost:5432/order_management"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("❌ DATABASE_URL is not set in the environment!")
+
 
 # SQLAlchemy setup for ORM (synchronous for model definition)
 url = make_url(DATABASE_URL)
