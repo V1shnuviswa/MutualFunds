@@ -25,7 +25,10 @@ from src.bse_integration.config import bse_settings
 from src.bse_integration.order import BSEOrderPlacer
 from src.routers.registration import bse_router as bse_registration_router
 from src.utils import preprocess_payload  # Import the utility function
-
+from dotenv import load_dotenv
+load_dotenv()
+print("Loaded BSE_USER_ID:", os.getenv("BSE_USER_ID"))
+print("Loaded BSE_MEMBER_CODE:", os.getenv("BSE_MEMBER_CODE"))
 # Configure logging - Set to DEBUG level for development
 logging.basicConfig(
     level=logging.DEBUG,
