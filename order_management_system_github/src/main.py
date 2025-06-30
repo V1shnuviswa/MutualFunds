@@ -1,5 +1,11 @@
 # /home/ubuntu/order_management_system/src/main.py
 import os 
+import os
+from dotenv import load_dotenv
+
+# Load .env very early
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.env'))
+load_dotenv(dotenv_path)
 from fastapi import FastAPI, Depends, HTTPException, Request, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -25,8 +31,10 @@ from src.bse_integration.config import bse_settings
 from src.bse_integration.order import BSEOrderPlacer
 from src.routers.registration import bse_router as bse_registration_router
 from src.utils import preprocess_payload  # Import the utility function
-from dotenv import load_dotenv
-load_dotenv()
+
+
+print("📦 DATABASE_URL:", os.getenv("DATABASE_URL"))  # just to confirm
+
 print("Loaded BSE_USER_ID:", os.getenv("BSE_USER_ID"))
 print("Loaded BSE_MEMBER_CODE:", os.getenv("BSE_MEMBER_CODE"))
 # Configure logging - Set to DEBUG level for development
